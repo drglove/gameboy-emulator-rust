@@ -9,6 +9,20 @@ struct Registers {
     l: u8,
 }
 
+enum Instruction {
+    ADD(ArithmeticTarget),
+}
+
+enum ArithmeticTarget {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+}
+
 impl Registers {
     fn get_bc(&self) -> u16 {
         ((self.b as u16) << 8) | (self.c as u16)
@@ -72,6 +86,40 @@ impl std::convert::From<u8> for FlagsRegister {
             half_carry,
             carry,
         }
+    }
+}
+
+struct CPU {
+    registers: Registers
+}
+
+impl CPU {
+    fn execute(&mut self, instruction: Instruction) {
+        match instruction {
+            Instruction::ADD(target) => {
+                match target {
+                    ArithmeticTarget::C => {
+                        let value = self.registers.c;
+                        let new_value = self.add(value);
+                        self.registers.a = new_value;
+                    }
+                    _ => {
+                        //TODO: Support other targets
+                    }
+                }
+            }
+        }
+    }
+
+    fn add(&mut self, value: u8) -> u8 {
+        let (new_value, did_overflow) = self.registers.a.overflowing_add(value);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.carry = did_overflow;
+        // Half-carry is true if adding the values of the lower nibbles of A and the value
+        // results in a carry into the upper nibble.
+        self.registers.f.half_carry = (self.registers.a & 0x0F) + (value & 0x0F) > 0x0F;
+        new_value
     }
 }
 
