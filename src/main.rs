@@ -16,7 +16,14 @@ enum Instruction {
 impl Instruction {
     fn from_byte(byte: u8) -> Option<Instruction> {
         match byte {
-            0x81 => Some(Instruction::ADD(ArithmeticTarget::C)),
+            0x80 | 0x88 => Some(Instruction::ADD(ArithmeticTarget::B)),
+            0x81 | 0x89 => Some(Instruction::ADD(ArithmeticTarget::C)),
+            0x82 | 0x8A => Some(Instruction::ADD(ArithmeticTarget::D)),
+            0x83 | 0x8B => Some(Instruction::ADD(ArithmeticTarget::E)),
+            0x84 | 0x8C => Some(Instruction::ADD(ArithmeticTarget::H)),
+            0x85 | 0x8D => Some(Instruction::ADD(ArithmeticTarget::L)),
+            //TODO: Support ADD A,(HL)
+            0x87 | 0x8F => Some(Instruction::ADD(ArithmeticTarget::A)),
             _ => None,
         }
     }
@@ -129,18 +136,18 @@ impl CPU {
     fn execute(&mut self, instruction: Instruction) -> u16 {
         match instruction {
             Instruction::ADD(target) => {
-                match target {
-                    ArithmeticTarget::C => {
-                        let value = self.registers.c;
-                        let new_value = self.add(value);
-                        self.registers.a = new_value;
-                        self.pc.wrapping_add(1)
-                    }
-                    _ => {
-                        //TODO: Support other targets
-                        self.pc
-                    }
-                }
+                let value = match target {
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
+                };
+                let new_value = self.add(value);
+                self.registers.a = new_value;
+                self.pc.wrapping_add(1)
             }
         }
     }
