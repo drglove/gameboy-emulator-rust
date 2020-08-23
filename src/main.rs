@@ -17,7 +17,7 @@ impl Instruction {
     fn from_byte(byte: u8) -> Option<Instruction> {
         match byte {
             0x81 => Some(Instruction::ADD(ArithmeticTarget::C)),
-            _ => { None }
+            _ => None,
         }
     }
 }
