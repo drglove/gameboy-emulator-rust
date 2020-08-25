@@ -105,6 +105,42 @@ impl std::convert::From<u8> for FlagsRegister {
     }
 }
 
+struct DMG01 {
+    cpu: CPU,
+}
+
+impl DMG01 {
+    fn new(cart: Option<Cartridge>) -> DMG01 {
+        use std::cmp::min;
+
+        let mut memory: [u8; 0xFFFF] = [0; 0xFFFF];
+        let size_to_copy = min(0xFFFF, cart.as_ref().unwrap().rom.len());
+        memory[0..size_to_copy].copy_from_slice(&cart.unwrap().rom.as_slice());
+
+        DMG01 {
+            cpu: CPU {
+                registers: Registers {
+                    a: 0,
+                    b: 0,
+                    c: 0,
+                    d: 0,
+                    e: 0,
+                    f: FlagsRegister {
+                        zero: false,
+                        subtract: false,
+                        half_carry: false,
+                        carry: false,
+                    },
+                    h: 0,
+                    l: 0,
+                },
+                pc: 0,
+                bus: MemoryBus { memory },
+            },
+        }
+    }
+}
+
 struct CPU {
     registers: Registers,
     pc: u16,
@@ -181,10 +217,14 @@ fn main() {
     use std::fs;
     let cart = if let Some(rom_path) = args.rom {
         Some(Cartridge {
-            rom: fs::read(rom_path).expect("Could not open rom file!")
+            rom: fs::read(rom_path).expect("Could not open rom file!"),
         })
     } else {
         None
     };
 
+    let mut gameboy = DMG01::new(cart);
+    loop {
+        gameboy.cpu.step();
+    }
 }
