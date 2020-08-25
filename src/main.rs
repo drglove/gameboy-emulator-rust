@@ -13,6 +13,7 @@ struct Registers {
 
 enum Instruction {
     ADD(ArithmeticTarget),
+    LD(LoadTarget),
 }
 
 impl Instruction {
@@ -26,6 +27,10 @@ impl Instruction {
             0x85 | 0x8D => Some(Instruction::ADD(ArithmeticTarget::L)),
             //TODO: Support ADD A,(HL)
             0x87 | 0x8F => Some(Instruction::ADD(ArithmeticTarget::A)),
+            0x01 => Some(Instruction::LD(LoadTarget::BC)),
+            0x11 => Some(Instruction::LD(LoadTarget::DE)),
+            0x21 => Some(Instruction::LD(LoadTarget::HL)),
+            0x31 => Some(Instruction::LD(LoadTarget::SP)),
             _ => None,
         }
     }
@@ -39,6 +44,13 @@ enum ArithmeticTarget {
     E,
     H,
     L,
+}
+
+enum LoadTarget {
+    BC,
+    DE,
+    HL,
+    SP,
 }
 
 impl Registers {
@@ -187,7 +199,22 @@ impl CPU {
                 self.registers.a = new_value;
                 self.registers.pc.wrapping_add(1)
             }
+            Instruction::LD(load_target) => {
+                let immediate_value = self.read_next_word();
+                match load_target {
+                    LoadTarget::BC => self.registers.set_bc(immediate_value),
+                    LoadTarget::DE => self.registers.set_de(immediate_value),
+                    LoadTarget::HL => self.registers.set_hl(immediate_value),
+                    LoadTarget::SP => self.registers.sp = immediate_value,
+                }
+                self.registers.pc.wrapping_add(3)
+            }
         }
+    }
+
+    fn read_next_word(&self) -> u16 {
+        (self.bus.read_byte(self.registers.pc + 2) as u16) << 8
+            | self.bus.read_byte(self.registers.pc + 1) as u16
     }
 
     fn add(&mut self, value: u8) -> u8 {
