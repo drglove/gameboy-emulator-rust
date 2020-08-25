@@ -7,6 +7,8 @@ struct Registers {
     f: FlagsRegister,
     h: u8,
     l: u8,
+    pc: u16,
+    sp: u16,
 }
 
 enum Instruction {
@@ -133,8 +135,9 @@ impl DMG01 {
                     },
                     h: 0,
                     l: 0,
+                    pc: 0,
+                    sp: 0,
                 },
-                pc: 0,
                 bus: MemoryBus { memory },
             },
         }
@@ -143,7 +146,6 @@ impl DMG01 {
 
 struct CPU {
     registers: Registers,
-    pc: u16,
     bus: MemoryBus,
 }
 
@@ -159,14 +161,14 @@ impl MemoryBus {
 
 impl CPU {
     fn step(&mut self) {
-        let instruction_byte = self.bus.read_byte(self.pc);
+        let instruction_byte = self.bus.read_byte(self.registers.pc);
         let next_pc = if let Some(instruction) = Instruction::from_byte(instruction_byte) {
             self.execute(instruction)
         } else {
             panic!("Unknown instruction found for 0x{:x}", instruction_byte);
         };
 
-        self.pc = next_pc;
+        self.registers.pc = next_pc;
     }
 
     fn execute(&mut self, instruction: Instruction) -> u16 {
@@ -183,7 +185,7 @@ impl CPU {
                 };
                 let new_value = self.add(value);
                 self.registers.a = new_value;
-                self.pc.wrapping_add(1)
+                self.registers.pc.wrapping_add(1)
             }
         }
     }
