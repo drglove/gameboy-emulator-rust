@@ -164,6 +164,27 @@ impl CPU {
     }
 }
 
+struct Cartridge {
+    rom: Vec<u8>,
+}
+
+use structopt::StructOpt;
+#[derive(Debug, StructOpt)]
+struct Cli {
+    #[structopt(parse(from_os_str), long)]
+    rom: Option<std::path::PathBuf>,
+}
+
 fn main() {
-    println!("Hello, world!");
+    let args = Cli::from_args();
+
+    use std::fs;
+    let cart = if let Some(rom_path) = args.rom {
+        Some(Cartridge {
+            rom: fs::read(rom_path).expect("Could not open rom file!")
+        })
+    } else {
+        None
+    };
+
 }
