@@ -14,6 +14,7 @@ struct Registers {
 enum Instruction {
     ADD(ArithmeticTarget),
     LD(LoadTarget),
+    XOR(ArithmeticTarget),
 }
 
 impl Instruction {
@@ -25,12 +26,18 @@ impl Instruction {
             0x83 | 0x8B => Some(Instruction::ADD(ArithmeticTarget::E)),
             0x84 | 0x8C => Some(Instruction::ADD(ArithmeticTarget::H)),
             0x85 | 0x8D => Some(Instruction::ADD(ArithmeticTarget::L)),
-            //TODO: Support ADD A,(HL)
             0x87 | 0x8F => Some(Instruction::ADD(ArithmeticTarget::A)),
             0x01 => Some(Instruction::LD(LoadTarget::BC)),
             0x11 => Some(Instruction::LD(LoadTarget::DE)),
             0x21 => Some(Instruction::LD(LoadTarget::HL)),
             0x31 => Some(Instruction::LD(LoadTarget::SP)),
+            0xA8 => Some(Instruction::XOR(ArithmeticTarget::B)),
+            0xA9 => Some(Instruction::XOR(ArithmeticTarget::C)),
+            0xAA => Some(Instruction::XOR(ArithmeticTarget::D)),
+            0xAB => Some(Instruction::XOR(ArithmeticTarget::E)),
+            0xAC => Some(Instruction::XOR(ArithmeticTarget::H)),
+            0xAD => Some(Instruction::XOR(ArithmeticTarget::L)),
+            0xAF => Some(Instruction::XOR(ArithmeticTarget::A)),
             _ => None,
         }
     }
@@ -209,6 +216,20 @@ impl CPU {
                 }
                 self.registers.pc.wrapping_add(3)
             }
+            Instruction::XOR(target) => {
+                let value = match target {
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
+                };
+                let new_value = self.xor(value);
+                self.registers.a = new_value;
+                self.registers.pc.wrapping_add(1)
+            }
         }
     }
 
@@ -227,13 +248,24 @@ impl CPU {
         self.registers.f.half_carry = (self.registers.a & 0x0F) + (value & 0x0F) > 0x0F;
         new_value
     }
+
+    fn xor(&mut self, value: u8) -> u8 {
+        let new_value = self.registers.a.bitxor(value);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.carry = false;
+        self.registers.f.half_carry = false;
+        new_value
+    }
 }
 
 struct Cartridge {
     rom: Vec<u8>,
 }
 
+use std::ops::BitXor;
 use structopt::StructOpt;
+
 #[derive(Debug, StructOpt)]
 struct Cli {
     #[structopt(parse(from_os_str), long)]
