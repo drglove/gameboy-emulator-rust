@@ -155,13 +155,13 @@ impl Instruction {
     fn from_byte(byte: u8, prefix_instruction: bool) -> Option<Instruction> {
         if !prefix_instruction {
             match byte {
-                0x80 | 0x88 => Some(Instruction::ADD(ArithmeticTarget::B)),
-                0x81 | 0x89 => Some(Instruction::ADD(ArithmeticTarget::C)),
-                0x82 | 0x8A => Some(Instruction::ADD(ArithmeticTarget::D)),
-                0x83 | 0x8B => Some(Instruction::ADD(ArithmeticTarget::E)),
-                0x84 | 0x8C => Some(Instruction::ADD(ArithmeticTarget::H)),
-                0x85 | 0x8D => Some(Instruction::ADD(ArithmeticTarget::L)),
-                0x87 | 0x8F => Some(Instruction::ADD(ArithmeticTarget::A)),
+                0x80 => Some(Instruction::ADD(ArithmeticTarget::B)),
+                0x81 => Some(Instruction::ADD(ArithmeticTarget::C)),
+                0x82 => Some(Instruction::ADD(ArithmeticTarget::D)),
+                0x83 => Some(Instruction::ADD(ArithmeticTarget::E)),
+                0x84 => Some(Instruction::ADD(ArithmeticTarget::H)),
+                0x85 => Some(Instruction::ADD(ArithmeticTarget::L)),
+                0x87 => Some(Instruction::ADD(ArithmeticTarget::A)),
                 0xA8 => Some(Instruction::XOR(ArithmeticTarget::B)),
                 0xA9 => Some(Instruction::XOR(ArithmeticTarget::C)),
                 0xAA => Some(Instruction::XOR(ArithmeticTarget::D)),
