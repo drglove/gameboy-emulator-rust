@@ -11,9 +11,11 @@ struct Registers {
     sp: u16,
 }
 
+#[allow(non_camel_case_types)]
 enum Instruction {
-    ADD(ArithmeticTarget),
-    XOR(ArithmeticTarget),
+    ADD(ArithmeticSource),
+    ADD_HL(WordRegister),
+    XOR(ArithmeticSource),
     LD(LoadType),
 }
 
@@ -155,20 +157,28 @@ impl Instruction {
     fn from_byte(byte: u8, prefix_instruction: bool) -> Option<Instruction> {
         if !prefix_instruction {
             match byte {
-                0x80 => Some(Instruction::ADD(ArithmeticTarget::B)),
-                0x81 => Some(Instruction::ADD(ArithmeticTarget::C)),
-                0x82 => Some(Instruction::ADD(ArithmeticTarget::D)),
-                0x83 => Some(Instruction::ADD(ArithmeticTarget::E)),
-                0x84 => Some(Instruction::ADD(ArithmeticTarget::H)),
-                0x85 => Some(Instruction::ADD(ArithmeticTarget::L)),
-                0x87 => Some(Instruction::ADD(ArithmeticTarget::A)),
-                0xA8 => Some(Instruction::XOR(ArithmeticTarget::B)),
-                0xA9 => Some(Instruction::XOR(ArithmeticTarget::C)),
-                0xAA => Some(Instruction::XOR(ArithmeticTarget::D)),
-                0xAB => Some(Instruction::XOR(ArithmeticTarget::E)),
-                0xAC => Some(Instruction::XOR(ArithmeticTarget::H)),
-                0xAD => Some(Instruction::XOR(ArithmeticTarget::L)),
-                0xAF => Some(Instruction::XOR(ArithmeticTarget::A)),
+                0x80 => Some(Instruction::ADD(ArithmeticSource::B)),
+                0x81 => Some(Instruction::ADD(ArithmeticSource::C)),
+                0x82 => Some(Instruction::ADD(ArithmeticSource::D)),
+                0x83 => Some(Instruction::ADD(ArithmeticSource::E)),
+                0x84 => Some(Instruction::ADD(ArithmeticSource::H)),
+                0x85 => Some(Instruction::ADD(ArithmeticSource::L)),
+                0x86 => Some(Instruction::ADD(ArithmeticSource::HL_INDIRECT)),
+                0x87 => Some(Instruction::ADD(ArithmeticSource::A)),
+                0xC6 => Some(Instruction::ADD(ArithmeticSource::D8)),
+                0x09 => Some(Instruction::ADD_HL(WordRegister::BC)),
+                0x19 => Some(Instruction::ADD_HL(WordRegister::DE)),
+                0x29 => Some(Instruction::ADD_HL(WordRegister::HL)),
+                0x39 => Some(Instruction::ADD_HL(WordRegister::SP)),
+                0xA8 => Some(Instruction::XOR(ArithmeticSource::B)),
+                0xA9 => Some(Instruction::XOR(ArithmeticSource::C)),
+                0xAA => Some(Instruction::XOR(ArithmeticSource::D)),
+                0xAB => Some(Instruction::XOR(ArithmeticSource::E)),
+                0xAC => Some(Instruction::XOR(ArithmeticSource::H)),
+                0xAD => Some(Instruction::XOR(ArithmeticSource::L)),
+                0xAE => Some(Instruction::XOR(ArithmeticSource::HL_INDIRECT)),
+                0xAF => Some(Instruction::XOR(ArithmeticSource::A)),
+                0xEE => Some(Instruction::XOR(ArithmeticSource::D8)),
                 0x01 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::BC, WordNumericLiteral::D16))),
                 0x11 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::DE, WordNumericLiteral::D16))),
                 0x21 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::HL, WordNumericLiteral::D16))),
@@ -270,7 +280,8 @@ impl Instruction {
     }
 }
 
-enum ArithmeticTarget {
+#[allow(non_camel_case_types)]
+enum ArithmeticSource {
     A,
     B,
     C,
@@ -278,6 +289,24 @@ enum ArithmeticTarget {
     E,
     H,
     L,
+    HL_INDIRECT,
+    D8,
+}
+
+impl ArithmeticSource {
+    fn get_byte_and_pc_offset(&self, cpu: &CPU) -> (u8, u16) {
+        match self {
+            ArithmeticSource::A => (cpu.registers.a, 1),
+            ArithmeticSource::B => (cpu.registers.b, 1),
+            ArithmeticSource::C => (cpu.registers.c, 1),
+            ArithmeticSource::D => (cpu.registers.d, 1),
+            ArithmeticSource::E => (cpu.registers.e, 1),
+            ArithmeticSource::H => (cpu.registers.h, 1),
+            ArithmeticSource::L => (cpu.registers.l, 1),
+            ArithmeticSource::HL_INDIRECT => (cpu.bus.read_byte(cpu.registers.get_hl()), 1),
+            ArithmeticSource::D8 => (cpu.read_next_byte(), 2),
+        }
+    }
 }
 
 impl Registers {
@@ -425,40 +454,31 @@ impl CPU {
         }
 
         Instruction::from_byte(instruction_byte, prefix_instruction).ok_or(format!(
-            "Unknown instruction found for 0x{:x}",
-            instruction_byte
+            "Unknown instruction found for 0x{:x} (prefixed = {})",
+            instruction_byte,
+            prefix_instruction,
         ))
     }
 
     fn execute(&mut self, instruction: Instruction) -> u16 {
         match instruction {
-            Instruction::ADD(target) => {
-                let value = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
+            Instruction::ADD(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.add(value);
                 self.registers.a = new_value;
+                self.registers.pc.wrapping_add(pc_offset)
+            }
+            Instruction::ADD_HL(source) => {
+                let value = source.get_word(&self.registers);
+                let new_value = self.add_hl(value);
+                self.registers.set_hl(new_value);
                 self.registers.pc.wrapping_add(1)
             }
-            Instruction::XOR(target) => {
-                let value = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
+            Instruction::XOR(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.xor(value);
                 self.registers.a = new_value;
-                self.registers.pc.wrapping_add(1)
+                self.registers.pc.wrapping_add(pc_offset)
             }
             Instruction::LD(load_type) => {
                 return match load_type {
@@ -595,6 +615,17 @@ impl CPU {
         // Half-carry is true if adding the values of the lower nibbles of A and the value
         // results in a carry into the upper nibble.
         self.registers.f.half_carry = (self.registers.a & 0x0F) + (value & 0x0F) > 0x0F;
+        new_value
+    }
+
+    fn add_hl(&mut self, value: u16) -> u16 {
+        let hl = self.registers.get_hl();
+        let (new_value, did_overflow) = hl.overflowing_add(value);
+        self.registers.f.subtract = false;
+        self.registers.f.carry = did_overflow;
+        // Half-carry is true if the high bytes overflowed when added. This is when the 11th bit flips.
+        let mask = 0b111_1111_1111;
+        self.registers.f.half_carry = (value & mask) + (hl & mask) > mask;
         new_value
     }
 
