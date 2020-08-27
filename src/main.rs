@@ -15,6 +15,7 @@ struct Registers {
 enum Instruction {
     ADD(ArithmeticSource),
     ADD_HL(WordRegister),
+    ADD_SP(),
     XOR(ArithmeticSource),
     LD(LoadType),
 }
@@ -170,6 +171,7 @@ impl Instruction {
                 0x19 => Some(Instruction::ADD_HL(WordRegister::DE)),
                 0x29 => Some(Instruction::ADD_HL(WordRegister::HL)),
                 0x39 => Some(Instruction::ADD_HL(WordRegister::SP)),
+                0xE8 => Some(Instruction::ADD_SP()),
                 0xA8 => Some(Instruction::XOR(ArithmeticSource::B)),
                 0xA9 => Some(Instruction::XOR(ArithmeticSource::C)),
                 0xAA => Some(Instruction::XOR(ArithmeticSource::D)),
@@ -473,6 +475,20 @@ impl CPU {
                 let new_value = self.add_hl(value);
                 self.registers.set_hl(new_value);
                 self.registers.pc.wrapping_add(1)
+            }
+            Instruction::ADD_SP() => {
+                let value = self.read_next_byte() as i8;
+                let padded_value = value as i16 as u16; // Extend to 16 bits and drop the signed-ness
+                let sp = self.registers.sp;
+                let new_sp = sp.wrapping_add(padded_value);
+
+                self.registers.f.zero = false;
+                self.registers.f.subtract = false;
+                self.registers.f.carry = (sp & 0x00FF) + (padded_value & 0x00FF) > 0x00FF;
+                self.registers.f.half_carry = (sp & 0x000F) + (padded_value & 0x000F) > 0x000F;
+                self.registers.sp = new_sp;
+
+                self.registers.pc.wrapping_add(2)
             }
             Instruction::XOR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
