@@ -18,7 +18,9 @@ enum Instruction {
     ADD_SP(),
     XOR(ArithmeticSource),
     LD(LoadType),
-    BIT(u8, ArithmeticSource)
+    JR(JumpCondition),
+    JP(JumpCondition, JumpTarget),
+    BIT(u8, ArithmeticSource),
 }
 
 enum LoadType {
@@ -37,6 +39,20 @@ enum LoadType {
     CopyByteFromRegisterToRegister(ByteRegister, ByteRegister),
     CopyWordFromRegisterToRegister(WordRegister, WordRegister),
     CopyStackOffsetToRegister(WordRegister, StackOffset),
+}
+
+enum JumpCondition {
+    Always,
+    Zero,
+    NotZero,
+    Carry,
+    NoCarry,
+}
+
+#[allow(non_camel_case_types)]
+enum JumpTarget {
+    A16,
+    HL_INDIRECT,
 }
 
 enum ByteRegister {
@@ -274,6 +290,17 @@ impl Instruction {
                 0xFA => Some(Instruction::LD(LoadType::ReadByteFromAddressLiteral(ByteRegister::A, AddressLiteral::A16))),
                 0xF8 => Some(Instruction::LD(LoadType::CopyStackOffsetToRegister(WordRegister::HL, StackOffset::SPOffset))),
                 0xF9 => Some(Instruction::LD(LoadType::CopyWordFromRegisterToRegister(WordRegister::SP, WordRegister::HL))),
+                0x18 => Some(Instruction::JR(JumpCondition::Always)),
+                0x20 => Some(Instruction::JR(JumpCondition::NotZero)),
+                0x28 => Some(Instruction::JR(JumpCondition::Zero)),
+                0x30 => Some(Instruction::JR(JumpCondition::NoCarry)),
+                0x38 => Some(Instruction::JR(JumpCondition::Carry)),
+                0xC2 => Some(Instruction::JP(JumpCondition::NotZero, JumpTarget::A16)),
+                0xC3 => Some(Instruction::JP(JumpCondition::Always, JumpTarget::A16)),
+                0xCA => Some(Instruction::JP(JumpCondition::Zero, JumpTarget::A16)),
+                0xD2 => Some(Instruction::JP(JumpCondition::NoCarry, JumpTarget::A16)),
+                0xDA => Some(Instruction::JP(JumpCondition::Carry, JumpTarget::A16)),
+                0xE9 => Some(Instruction::JP(JumpCondition::Always, JumpTarget::HL_INDIRECT)),
                 _ => None,
             }
         }
@@ -678,6 +705,26 @@ impl CPU {
                     }
                 }
             }
+            Instruction::JR(jump_condition) => {
+                let take_jump = match jump_condition {
+                    JumpCondition::Always => true,
+                    JumpCondition::Zero => self.registers.f.zero,
+                    JumpCondition::NotZero => !self.registers.f.zero,
+                    JumpCondition::Carry => self.registers.f.carry,
+                    JumpCondition::NoCarry => !self.registers.f.carry,
+                };
+                self.jump_relative(take_jump)
+            }
+            Instruction::JP(jump_condition, jump_target) => {
+                let take_jump = match jump_condition {
+                    JumpCondition::Always => true,
+                    JumpCondition::Zero => self.registers.f.zero,
+                    JumpCondition::NotZero => !self.registers.f.zero,
+                    JumpCondition::Carry => self.registers.f.carry,
+                    JumpCondition::NoCarry => !self.registers.f.carry,
+                };
+                self.jump(take_jump, jump_target)
+            }
             Instruction::BIT(bit_to_test, source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.bit_test(value, bit_to_test);
@@ -724,6 +771,31 @@ impl CPU {
         self.registers.f.carry = false;
         self.registers.f.half_carry = false;
         new_value
+    }
+
+    fn jump_relative(&self, take_jump: bool) -> u16 {
+        let next_pc = self.registers.pc.wrapping_add(2);
+        if take_jump {
+            let offset = self.read_next_byte() as i8;
+            match offset.is_positive() {
+                true => next_pc.wrapping_add(offset as u16),
+                false => next_pc.wrapping_sub(offset.abs() as u16),
+            }
+        } else {
+            next_pc
+        }
+    }
+
+    fn jump(&self, take_jump: bool, jump_target: JumpTarget) -> u16 {
+        let (address_if_taken, address_if_not_taken) = match jump_target {
+            JumpTarget::A16 => (self.read_next_word(), self.registers.pc.wrapping_add(3)),
+            JumpTarget::HL_INDIRECT => (self.registers.get_hl(), self.registers.pc.wrapping_add(1)),
+        };
+        if take_jump {
+            address_if_taken
+        } else {
+            address_if_not_taken
+        }
     }
 
     fn bit_test(&mut self, value: u8, bit_to_test: u8) {
