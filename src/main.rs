@@ -18,6 +18,7 @@ enum Instruction {
     ADD_SP(),
     XOR(ArithmeticSource),
     LD(LoadType),
+    BIT(u8, ArithmeticSource)
 }
 
 enum LoadType {
@@ -277,7 +278,73 @@ impl Instruction {
             }
         }
         else {
-            None
+            match byte {
+                0x40 => Some(Instruction::BIT(0, ArithmeticSource::B)),
+                0x41 => Some(Instruction::BIT(0, ArithmeticSource::C)),
+                0x42 => Some(Instruction::BIT(0, ArithmeticSource::D)),
+                0x43 => Some(Instruction::BIT(0, ArithmeticSource::E)),
+                0x44 => Some(Instruction::BIT(0, ArithmeticSource::H)),
+                0x45 => Some(Instruction::BIT(0, ArithmeticSource::L)),
+                0x46 => Some(Instruction::BIT(0, ArithmeticSource::HL_INDIRECT)),
+                0x47 => Some(Instruction::BIT(0, ArithmeticSource::A)),
+                0x48 => Some(Instruction::BIT(1, ArithmeticSource::B)),
+                0x49 => Some(Instruction::BIT(1, ArithmeticSource::C)),
+                0x4A => Some(Instruction::BIT(1, ArithmeticSource::D)),
+                0x4B => Some(Instruction::BIT(1, ArithmeticSource::E)),
+                0x4C => Some(Instruction::BIT(1, ArithmeticSource::H)),
+                0x4D => Some(Instruction::BIT(1, ArithmeticSource::L)),
+                0x4E => Some(Instruction::BIT(1, ArithmeticSource::HL_INDIRECT)),
+                0x4F => Some(Instruction::BIT(1, ArithmeticSource::A)),
+                0x50 => Some(Instruction::BIT(2, ArithmeticSource::B)),
+                0x51 => Some(Instruction::BIT(2, ArithmeticSource::C)),
+                0x52 => Some(Instruction::BIT(2, ArithmeticSource::D)),
+                0x53 => Some(Instruction::BIT(2, ArithmeticSource::E)),
+                0x54 => Some(Instruction::BIT(2, ArithmeticSource::H)),
+                0x55 => Some(Instruction::BIT(2, ArithmeticSource::L)),
+                0x56 => Some(Instruction::BIT(2, ArithmeticSource::HL_INDIRECT)),
+                0x57 => Some(Instruction::BIT(2, ArithmeticSource::A)),
+                0x58 => Some(Instruction::BIT(3, ArithmeticSource::B)),
+                0x59 => Some(Instruction::BIT(3, ArithmeticSource::C)),
+                0x5A => Some(Instruction::BIT(3, ArithmeticSource::D)),
+                0x5B => Some(Instruction::BIT(3, ArithmeticSource::E)),
+                0x5C => Some(Instruction::BIT(3, ArithmeticSource::H)),
+                0x5D => Some(Instruction::BIT(3, ArithmeticSource::L)),
+                0x5E => Some(Instruction::BIT(3, ArithmeticSource::HL_INDIRECT)),
+                0x5F => Some(Instruction::BIT(3, ArithmeticSource::A)),
+                0x60 => Some(Instruction::BIT(4, ArithmeticSource::B)),
+                0x61 => Some(Instruction::BIT(4, ArithmeticSource::C)),
+                0x62 => Some(Instruction::BIT(4, ArithmeticSource::D)),
+                0x63 => Some(Instruction::BIT(4, ArithmeticSource::E)),
+                0x64 => Some(Instruction::BIT(4, ArithmeticSource::H)),
+                0x65 => Some(Instruction::BIT(4, ArithmeticSource::L)),
+                0x66 => Some(Instruction::BIT(4, ArithmeticSource::HL_INDIRECT)),
+                0x67 => Some(Instruction::BIT(4, ArithmeticSource::A)),
+                0x68 => Some(Instruction::BIT(5, ArithmeticSource::B)),
+                0x69 => Some(Instruction::BIT(5, ArithmeticSource::C)),
+                0x6A => Some(Instruction::BIT(5, ArithmeticSource::D)),
+                0x6B => Some(Instruction::BIT(5, ArithmeticSource::E)),
+                0x6C => Some(Instruction::BIT(5, ArithmeticSource::H)),
+                0x6D => Some(Instruction::BIT(5, ArithmeticSource::L)),
+                0x6E => Some(Instruction::BIT(5, ArithmeticSource::HL_INDIRECT)),
+                0x6F => Some(Instruction::BIT(5, ArithmeticSource::A)),
+                0x70 => Some(Instruction::BIT(6, ArithmeticSource::B)),
+                0x71 => Some(Instruction::BIT(6, ArithmeticSource::C)),
+                0x72 => Some(Instruction::BIT(6, ArithmeticSource::D)),
+                0x73 => Some(Instruction::BIT(6, ArithmeticSource::E)),
+                0x74 => Some(Instruction::BIT(6, ArithmeticSource::H)),
+                0x75 => Some(Instruction::BIT(6, ArithmeticSource::L)),
+                0x76 => Some(Instruction::BIT(6, ArithmeticSource::HL_INDIRECT)),
+                0x77 => Some(Instruction::BIT(6, ArithmeticSource::A)),
+                0x78 => Some(Instruction::BIT(7, ArithmeticSource::B)),
+                0x79 => Some(Instruction::BIT(7, ArithmeticSource::C)),
+                0x7A => Some(Instruction::BIT(7, ArithmeticSource::D)),
+                0x7B => Some(Instruction::BIT(7, ArithmeticSource::E)),
+                0x7C => Some(Instruction::BIT(7, ArithmeticSource::H)),
+                0x7D => Some(Instruction::BIT(7, ArithmeticSource::L)),
+                0x7E => Some(Instruction::BIT(7, ArithmeticSource::HL_INDIRECT)),
+                0x7F => Some(Instruction::BIT(7, ArithmeticSource::A)),
+                _ => None,
+            }
         }
     }
 }
@@ -611,6 +678,11 @@ impl CPU {
                     }
                 }
             }
+            Instruction::BIT(bit_to_test, source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                self.bit_test(value, bit_to_test);
+                self.registers.pc.wrapping_add(pc_offset)
+            }
         }
     }
 
@@ -652,6 +724,13 @@ impl CPU {
         self.registers.f.carry = false;
         self.registers.f.half_carry = false;
         new_value
+    }
+
+    fn bit_test(&mut self, value: u8, bit_to_test: u8) {
+        let mask = (1 << bit_to_test) as u8;
+        self.registers.f.zero = (mask & value) == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.half_carry = true;
     }
 }
 
