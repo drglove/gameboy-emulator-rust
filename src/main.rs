@@ -21,6 +21,7 @@ enum Instruction {
     JR(JumpCondition),
     JP(JumpCondition, JumpTarget),
     CALL(JumpCondition),
+    PUSH(WordRegister),
     BIT(u8, ArithmeticSource),
 }
 
@@ -109,6 +110,7 @@ enum WordRegister {
     DE,
     HL,
     SP,
+    AF,
 }
 
 impl WordRegister {
@@ -118,6 +120,7 @@ impl WordRegister {
             WordRegister::DE => registers.get_de(),
             WordRegister::HL => registers.get_hl(),
             WordRegister::SP => registers.sp,
+            WordRegister::AF => registers.get_af(),
         }
     }
 
@@ -127,6 +130,7 @@ impl WordRegister {
             WordRegister::DE => registers.set_de(value),
             WordRegister::HL => registers.set_hl(value),
             WordRegister::SP => registers.sp = value,
+            WordRegister::AF => panic!("Trying to set AF register!"),
         }
     }
 }
@@ -319,6 +323,10 @@ impl Instruction {
                 0xCD => Some(Instruction::CALL(JumpCondition::Always)),
                 0xD4 => Some(Instruction::CALL(JumpCondition::NoCarry)),
                 0xDC => Some(Instruction::CALL(JumpCondition::Carry)),
+                0xC5 => Some(Instruction::PUSH(WordRegister::BC)),
+                0xD5 => Some(Instruction::PUSH(WordRegister::DE)),
+                0xE5 => Some(Instruction::PUSH(WordRegister::HL)),
+                0xF5 => Some(Instruction::PUSH(WordRegister::AF)),
                 _ => None,
             }
         }
@@ -450,8 +458,13 @@ impl Registers {
         self.h = ((value & 0xFF00) >> 8) as u8;
         self.l = (value & 0x00FF) as u8;
     }
+
+    fn get_af(&self) -> u16 {
+        ((self.a as u16) << 8) | (u8::from(self.f) as u16)
+    }
 }
 
+#[derive(Copy, Clone)]
 struct FlagsRegister {
     zero: bool,
     subtract: bool,
@@ -734,6 +747,11 @@ impl CPU {
             Instruction::CALL(jump_condition) => {
                 let take_jump = jump_condition.take_jump(&self.registers);
                 self.call(take_jump)
+            }
+            Instruction::PUSH(source) => {
+                let value = source.get_word(&self.registers);
+                self.push(value);
+                self.registers.pc.wrapping_add(1)
             }
             Instruction::BIT(bit_to_test, source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
