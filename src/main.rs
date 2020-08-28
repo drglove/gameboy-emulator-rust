@@ -20,6 +20,7 @@ enum Instruction {
     LD(LoadType),
     JR(JumpCondition),
     JP(JumpCondition, JumpTarget),
+    CALL(JumpCondition),
     BIT(u8, ArithmeticSource),
 }
 
@@ -47,6 +48,18 @@ enum JumpCondition {
     NotZero,
     Carry,
     NoCarry,
+}
+
+impl JumpCondition {
+    fn take_jump(&self, registers: &Registers) -> bool {
+        match self {
+            JumpCondition::Always => true,
+            JumpCondition::Zero => registers.f.zero,
+            JumpCondition::NotZero => !registers.f.zero,
+            JumpCondition::Carry => registers.f.carry,
+            JumpCondition::NoCarry => !registers.f.carry,
+        }
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -301,6 +314,11 @@ impl Instruction {
                 0xD2 => Some(Instruction::JP(JumpCondition::NoCarry, JumpTarget::A16)),
                 0xDA => Some(Instruction::JP(JumpCondition::Carry, JumpTarget::A16)),
                 0xE9 => Some(Instruction::JP(JumpCondition::Always, JumpTarget::HL_INDIRECT)),
+                0xC4 => Some(Instruction::CALL(JumpCondition::NotZero)),
+                0xCC => Some(Instruction::CALL(JumpCondition::Zero)),
+                0xCD => Some(Instruction::CALL(JumpCondition::Always)),
+                0xD4 => Some(Instruction::CALL(JumpCondition::NoCarry)),
+                0xDC => Some(Instruction::CALL(JumpCondition::Carry)),
                 _ => None,
             }
         }
@@ -706,24 +724,16 @@ impl CPU {
                 }
             }
             Instruction::JR(jump_condition) => {
-                let take_jump = match jump_condition {
-                    JumpCondition::Always => true,
-                    JumpCondition::Zero => self.registers.f.zero,
-                    JumpCondition::NotZero => !self.registers.f.zero,
-                    JumpCondition::Carry => self.registers.f.carry,
-                    JumpCondition::NoCarry => !self.registers.f.carry,
-                };
+                let take_jump = jump_condition.take_jump(&self.registers);
                 self.jump_relative(take_jump)
             }
             Instruction::JP(jump_condition, jump_target) => {
-                let take_jump = match jump_condition {
-                    JumpCondition::Always => true,
-                    JumpCondition::Zero => self.registers.f.zero,
-                    JumpCondition::NotZero => !self.registers.f.zero,
-                    JumpCondition::Carry => self.registers.f.carry,
-                    JumpCondition::NoCarry => !self.registers.f.carry,
-                };
+                let take_jump = jump_condition.take_jump(&self.registers);
                 self.jump(take_jump, jump_target)
+            }
+            Instruction::CALL(jump_condition) => {
+                let take_jump = jump_condition.take_jump(&self.registers);
+                self.call(take_jump)
             }
             Instruction::BIT(bit_to_test, source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
@@ -798,11 +808,31 @@ impl CPU {
         }
     }
 
+    fn call(&mut self, take_jump:bool) -> u16 {
+        let address_if_taken = self.read_next_word();
+        let address_to_return_to = self.registers.pc.wrapping_add(3);
+        if take_jump {
+            self.push(address_to_return_to);
+            address_if_taken
+        }
+        else {
+            address_to_return_to
+        }
+    }
+
     fn bit_test(&mut self, value: u8, bit_to_test: u8) {
         let mask = (1 << bit_to_test) as u8;
         self.registers.f.zero = (mask & value) == 0;
         self.registers.f.subtract = false;
         self.registers.f.half_carry = true;
+    }
+
+    fn push(&mut self, value: u16) {
+        self.registers.sp = self.registers.sp.wrapping_sub(1);
+        self.bus.write_byte(((value & 0xFF00) >> 8) as u8, self.registers.sp);
+
+        self.registers.sp = self.registers.sp.wrapping_sub(1);
+        self.bus.write_byte((value & 0x00FF) as u8, self.registers.sp);
     }
 }
 
