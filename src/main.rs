@@ -22,6 +22,9 @@ enum Instruction {
     JP(JumpCondition, JumpTarget),
     CALL(JumpCondition),
     PUSH(WordRegister),
+    RL(ArithmeticSource),
+    RLA(),
+    RR(ArithmeticSource),
     BIT(u8, ArithmeticSource),
 }
 
@@ -206,6 +209,7 @@ impl Instruction {
                 0x29 => Some(Instruction::ADD_HL(WordRegister::HL)),
                 0x39 => Some(Instruction::ADD_HL(WordRegister::SP)),
                 0xE8 => Some(Instruction::ADD_SP()),
+                0x17 => Some(Instruction::RLA()),
                 0xA8 => Some(Instruction::XOR(ArithmeticSource::B)),
                 0xA9 => Some(Instruction::XOR(ArithmeticSource::C)),
                 0xAA => Some(Instruction::XOR(ArithmeticSource::D)),
@@ -332,6 +336,22 @@ impl Instruction {
         }
         else {
             match byte {
+                0x10 => Some(Instruction::RL(ArithmeticSource::B)),
+                0x11 => Some(Instruction::RL(ArithmeticSource::C)),
+                0x12 => Some(Instruction::RL(ArithmeticSource::D)),
+                0x13 => Some(Instruction::RL(ArithmeticSource::E)),
+                0x14 => Some(Instruction::RL(ArithmeticSource::H)),
+                0x15 => Some(Instruction::RL(ArithmeticSource::L)),
+                0x16 => Some(Instruction::RL(ArithmeticSource::HL_INDIRECT)),
+                0x17 => Some(Instruction::RL(ArithmeticSource::A)),
+                0x18 => Some(Instruction::RR(ArithmeticSource::B)),
+                0x19 => Some(Instruction::RR(ArithmeticSource::C)),
+                0x1A => Some(Instruction::RR(ArithmeticSource::D)),
+                0x1B => Some(Instruction::RR(ArithmeticSource::E)),
+                0x1C => Some(Instruction::RR(ArithmeticSource::H)),
+                0x1D => Some(Instruction::RR(ArithmeticSource::L)),
+                0x1E => Some(Instruction::RR(ArithmeticSource::HL_INDIRECT)),
+                0x1F => Some(Instruction::RR(ArithmeticSource::A)),
                 0x40 => Some(Instruction::BIT(0, ArithmeticSource::B)),
                 0x41 => Some(Instruction::BIT(0, ArithmeticSource::C)),
                 0x42 => Some(Instruction::BIT(0, ArithmeticSource::D)),
@@ -429,6 +449,22 @@ impl ArithmeticSource {
             ArithmeticSource::D8 => (cpu.read_next_byte(), 2),
         }
     }
+
+    fn set_byte(&self, value: u8, cpu: &mut CPU) {
+        match self {
+            ArithmeticSource::A => cpu.registers.a = value,
+            ArithmeticSource::B => cpu.registers.b = value,
+            ArithmeticSource::C => cpu.registers.c = value,
+            ArithmeticSource::D => cpu.registers.d = value,
+            ArithmeticSource::E => cpu.registers.e = value,
+            ArithmeticSource::H => cpu.registers.h = value,
+            ArithmeticSource::L => cpu.registers.l = value,
+            ArithmeticSource::HL_INDIRECT => {
+                cpu.bus.write_byte(value, cpu.registers.get_hl());
+            },
+            ArithmeticSource::D8 => panic!("Trying to set the byte for a literal d8!"),
+        };
+    }
 }
 
 impl Registers {
@@ -500,6 +536,11 @@ impl std::convert::From<u8> for FlagsRegister {
             carry,
         }
     }
+}
+
+enum RotateDirection {
+    Left,
+    Right,
 }
 
 struct DMG01 {
@@ -753,6 +794,25 @@ impl CPU {
                 self.push(value);
                 self.registers.pc.wrapping_add(1)
             }
+            Instruction::RL(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.rotate_through_carry(value, RotateDirection::Left, false);
+                source.set_byte(new_value, self);
+                self.registers.pc.wrapping_add(pc_offset + 1)
+            }
+            Instruction::RLA() => {
+                let source = ArithmeticSource::A;
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.rotate_through_carry(value, RotateDirection::Left, true);
+                source.set_byte(new_value, self);
+                self.registers.pc.wrapping_add(pc_offset)
+            }
+            Instruction::RR(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.rotate_through_carry(value, RotateDirection::Right, false);
+                source.set_byte(new_value, self);
+                self.registers.pc.wrapping_add(pc_offset + 1)
+            }
             Instruction::BIT(bit_to_test, source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.bit_test(value, bit_to_test);
@@ -836,6 +896,20 @@ impl CPU {
         else {
             address_to_return_to
         }
+    }
+
+    fn rotate_through_carry(&mut self, value: u8, direction: RotateDirection, force_zero: bool) -> u8 {
+        let rotated_value = match direction {
+            RotateDirection::Left => value.rotate_left(1),
+            RotateDirection::Right => value.rotate_right(1),
+        };
+        let carry_bit = if self.registers.f.carry { 1 } else { 0 };
+        let new_value = rotated_value | carry_bit;
+        self.registers.f.zero = force_zero || new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.half_carry = false;
+        self.registers.f.carry = (value & 0b1000000) != 0;
+        new_value
     }
 
     fn bit_test(&mut self, value: u8, bit_to_test: u8) {
