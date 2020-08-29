@@ -21,6 +21,7 @@ enum Instruction {
     JR(JumpCondition),
     JP(JumpCondition, JumpTarget),
     CALL(JumpCondition),
+    RET(JumpCondition),
     PUSH(WordRegister),
     RL(ArithmeticSource),
     RLA(),
@@ -327,6 +328,11 @@ impl Instruction {
                 0xCD => Some(Instruction::CALL(JumpCondition::Always)),
                 0xD4 => Some(Instruction::CALL(JumpCondition::NoCarry)),
                 0xDC => Some(Instruction::CALL(JumpCondition::Carry)),
+                0xC0 => Some(Instruction::RET(JumpCondition::NotZero)),
+                0xC8 => Some(Instruction::RET(JumpCondition::Zero)),
+                0xC9 => Some(Instruction::RET(JumpCondition::Always)),
+                0xD0 => Some(Instruction::RET(JumpCondition::NoCarry)),
+                0xD8 => Some(Instruction::RET(JumpCondition::Carry)),
                 0xC5 => Some(Instruction::PUSH(WordRegister::BC)),
                 0xD5 => Some(Instruction::PUSH(WordRegister::DE)),
                 0xE5 => Some(Instruction::PUSH(WordRegister::HL)),
@@ -789,6 +795,10 @@ impl CPU {
                 let take_jump = jump_condition.take_jump(&self.registers);
                 self.call(take_jump)
             }
+            Instruction::RET(jump_condition) => {
+                let take_jump = jump_condition.take_jump(&self.registers);
+                self.ret(take_jump)
+            }
             Instruction::PUSH(source) => {
                 let value = source.get_word(&self.registers);
                 self.push(value);
@@ -886,7 +896,7 @@ impl CPU {
         }
     }
 
-    fn call(&mut self, take_jump:bool) -> u16 {
+    fn call(&mut self, take_jump: bool) -> u16 {
         let address_if_taken = self.read_next_word();
         let address_to_return_to = self.registers.pc.wrapping_add(3);
         if take_jump {
@@ -895,6 +905,15 @@ impl CPU {
         }
         else {
             address_to_return_to
+        }
+    }
+
+    fn ret(&mut self, take_jump: bool) -> u16 {
+        if take_jump {
+            self.pop()
+        }
+        else {
+            self.registers.pc.wrapping_add(1)
         }
     }
 
@@ -925,6 +944,16 @@ impl CPU {
 
         self.registers.sp = self.registers.sp.wrapping_sub(1);
         self.bus.write_byte((value & 0x00FF) as u8, self.registers.sp);
+    }
+
+    fn pop(&mut self) -> u16 {
+        let low = self.bus.read_byte(self.registers.sp);
+        self.registers.sp = self.registers.sp.wrapping_add(1);
+
+        let hi = self.bus.read_byte(self.registers.sp);
+        self.registers.sp = self.registers.sp.wrapping_add(1);
+
+        ((hi as u16) << 8) | (low as u16)
     }
 }
 
