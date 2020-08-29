@@ -638,7 +638,7 @@ impl CPU {
         }
 
         Instruction::from_byte(instruction_byte, prefix_instruction).ok_or(format!(
-            "Unknown instruction found for 0x{:x} (prefixed = {})",
+            "Unknown instruction found for {:#04x} (prefixed = {})",
             instruction_byte,
             prefix_instruction,
         ))
