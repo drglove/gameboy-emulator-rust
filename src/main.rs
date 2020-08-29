@@ -24,7 +24,8 @@ enum Instruction {
     RET(JumpCondition),
     PUSH(WordRegister),
     POP(WordRegister),
-    INC(IncrementTarget),
+    INC(IncrementDecrementTarget),
+    DEC(IncrementDecrementTarget),
     RL(ArithmeticSource),
     RLA(),
     RR(ArithmeticSource),
@@ -75,7 +76,7 @@ enum JumpTarget {
     HL_INDIRECT,
 }
 
-enum IncrementTarget {
+enum IncrementDecrementTarget {
     Byte(ArithmeticSource),
     Word(WordRegister),
 }
@@ -227,18 +228,30 @@ impl Instruction {
                 0xAE => Some(Instruction::XOR(ArithmeticSource::HL_INDIRECT)),
                 0xAF => Some(Instruction::XOR(ArithmeticSource::A)),
                 0xEE => Some(Instruction::XOR(ArithmeticSource::D8)),
-                0x03 => Some(Instruction::INC(IncrementTarget::Word(WordRegister::BC))),
-                0x13 => Some(Instruction::INC(IncrementTarget::Word(WordRegister::DE))),
-                0x23 => Some(Instruction::INC(IncrementTarget::Word(WordRegister::HL))),
-                0x33 => Some(Instruction::INC(IncrementTarget::Word(WordRegister::SP))),
-                0x04 => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::B))),
-                0x0C => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::C))),
-                0x14 => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::D))),
-                0x1C => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::E))),
-                0x24 => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::H))),
-                0x2C => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::L))),
-                0x34 => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::HL_INDIRECT))),
-                0x3C => Some(Instruction::INC(IncrementTarget::Byte(ArithmeticSource::A))),
+                0x03 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::BC))),
+                0x13 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::DE))),
+                0x23 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::HL))),
+                0x33 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::SP))),
+                0x04 => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::B))),
+                0x0C => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::C))),
+                0x14 => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::D))),
+                0x1C => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::E))),
+                0x24 => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::H))),
+                0x2C => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::L))),
+                0x34 => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::HL_INDIRECT))),
+                0x3C => Some(Instruction::INC(IncrementDecrementTarget::Byte(ArithmeticSource::A))),
+                0x0B => Some(Instruction::DEC(IncrementDecrementTarget::Word(WordRegister::BC))),
+                0x1B => Some(Instruction::DEC(IncrementDecrementTarget::Word(WordRegister::DE))),
+                0x2B => Some(Instruction::DEC(IncrementDecrementTarget::Word(WordRegister::HL))),
+                0x3B => Some(Instruction::DEC(IncrementDecrementTarget::Word(WordRegister::SP))),
+                0x05 => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::B))),
+                0x0D => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::C))),
+                0x15 => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::D))),
+                0x1D => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::E))),
+                0x25 => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::H))),
+                0x2D => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::L))),
+                0x35 => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::HL_INDIRECT))),
+                0x3D => Some(Instruction::DEC(IncrementDecrementTarget::Byte(ArithmeticSource::A))),
                 0x01 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::BC, WordNumericLiteral::D16))),
                 0x11 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::DE, WordNumericLiteral::D16))),
                 0x21 => Some(Instruction::LD(LoadType::ReadWordNumericLiteral(WordRegister::HL, WordNumericLiteral::D16))),
@@ -839,15 +852,31 @@ impl CPU {
             }
             Instruction::INC(target) => {
                 match target {
-                    IncrementTarget::Byte(byte_target) => {
+                    IncrementDecrementTarget::Byte(byte_target) => {
                         let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
                         let new_value = self.increment(value);
                         byte_target.set_byte(new_value, self);
                         self.registers.pc.wrapping_add(pc_offset)
                     }
-                    IncrementTarget::Word(word_register) => {
+                    IncrementDecrementTarget::Word(word_register) => {
                         let value = word_register.get_word(&self.registers);
                         let new_value = self.increment_word(value);
+                        word_register.set_word(new_value, &mut self.registers);
+                        self.registers.pc.wrapping_add(1)
+                    }
+                }
+            }
+            Instruction::DEC(target) => {
+                match target {
+                    IncrementDecrementTarget::Byte(byte_target) => {
+                        let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
+                        let new_value = self.decrement(value);
+                        byte_target.set_byte(new_value, self);
+                        self.registers.pc.wrapping_add(pc_offset)
+                    }
+                    IncrementDecrementTarget::Word(word_register) => {
+                        let value = word_register.get_word(&self.registers);
+                        let new_value = self.decrement_word(value);
                         word_register.set_word(new_value, &mut self.registers);
                         self.registers.pc.wrapping_add(1)
                     }
@@ -921,6 +950,19 @@ impl CPU {
 
     fn increment_word(&mut self, value: u16) -> u16 {
         value.wrapping_add(1)
+    }
+
+    fn decrement(&mut self, value: u8) -> u8 {
+        let new_value = value.wrapping_sub(1);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = true;
+        // There's a carry if we subtract one from 0 in the bottom nibble.
+        self.registers.f.half_carry = (value & 0x0F) == 0x00;
+        new_value
+    }
+
+    fn decrement_word(&mut self, value: u16) -> u16 {
+        value.wrapping_sub(1)
     }
 
     fn xor(&mut self, value: u8) -> u8 {
