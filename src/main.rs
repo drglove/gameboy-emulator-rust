@@ -23,6 +23,7 @@ enum Instruction {
     CALL(JumpCondition),
     RET(JumpCondition),
     PUSH(WordRegister),
+    POP(WordRegister),
     RL(ArithmeticSource),
     RLA(),
     RR(ArithmeticSource),
@@ -123,8 +124,8 @@ impl WordRegister {
             WordRegister::BC => registers.get_bc(),
             WordRegister::DE => registers.get_de(),
             WordRegister::HL => registers.get_hl(),
-            WordRegister::SP => registers.sp,
             WordRegister::AF => registers.get_af(),
+            WordRegister::SP => registers.sp,
         }
     }
 
@@ -133,8 +134,8 @@ impl WordRegister {
             WordRegister::BC => registers.set_bc(value),
             WordRegister::DE => registers.set_de(value),
             WordRegister::HL => registers.set_hl(value),
+            WordRegister::AF => registers.set_af(value),
             WordRegister::SP => registers.sp = value,
-            WordRegister::AF => panic!("Trying to set AF register!"),
         }
     }
 }
@@ -337,6 +338,10 @@ impl Instruction {
                 0xD5 => Some(Instruction::PUSH(WordRegister::DE)),
                 0xE5 => Some(Instruction::PUSH(WordRegister::HL)),
                 0xF5 => Some(Instruction::PUSH(WordRegister::AF)),
+                0xC1 => Some(Instruction::POP(WordRegister::BC)),
+                0xD1 => Some(Instruction::POP(WordRegister::DE)),
+                0xE1 => Some(Instruction::POP(WordRegister::HL)),
+                0xF1 => Some(Instruction::POP(WordRegister::AF)),
                 _ => None,
             }
         }
@@ -503,6 +508,11 @@ impl Registers {
 
     fn get_af(&self) -> u16 {
         ((self.a as u16) << 8) | (u8::from(self.f) as u16)
+    }
+
+    fn set_af(&mut self, value: u16) {
+        self.a = ((value & 0xFF00) >> 8) as u8;
+        self.f = FlagsRegister::from((value & 0x00FF) as u8);
     }
 }
 
@@ -802,6 +812,11 @@ impl CPU {
             Instruction::PUSH(source) => {
                 let value = source.get_word(&self.registers);
                 self.push(value);
+                self.registers.pc.wrapping_add(1)
+            }
+            Instruction::POP(target) => {
+                let value = self.pop();
+                target.set_word(value, &mut self.registers);
                 self.registers.pc.wrapping_add(1)
             }
             Instruction::RL(source) => {
