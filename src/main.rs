@@ -16,6 +16,7 @@ enum Instruction {
     ADD(ArithmeticSource),
     ADD_HL(WordRegister),
     ADD_SP(),
+    CP(ArithmeticSource),
     XOR(ArithmeticSource),
     LD(LoadType),
     JR(JumpCondition),
@@ -218,6 +219,15 @@ impl Instruction {
                 0x29 => Some(Instruction::ADD_HL(WordRegister::HL)),
                 0x39 => Some(Instruction::ADD_HL(WordRegister::SP)),
                 0xE8 => Some(Instruction::ADD_SP()),
+                0xB8 => Some(Instruction::CP(ArithmeticSource::B)),
+                0xB9 => Some(Instruction::CP(ArithmeticSource::C)),
+                0xBA => Some(Instruction::CP(ArithmeticSource::D)),
+                0xBB => Some(Instruction::CP(ArithmeticSource::E)),
+                0xBC => Some(Instruction::CP(ArithmeticSource::H)),
+                0xBD => Some(Instruction::CP(ArithmeticSource::L)),
+                0xBE => Some(Instruction::CP(ArithmeticSource::HL_INDIRECT)),
+                0xBF => Some(Instruction::CP(ArithmeticSource::A)),
+                0xFE => Some(Instruction::CP(ArithmeticSource::D8)),
                 0x17 => Some(Instruction::RLA()),
                 0xA8 => Some(Instruction::XOR(ArithmeticSource::B)),
                 0xA9 => Some(Instruction::XOR(ArithmeticSource::C)),
@@ -703,6 +713,11 @@ impl CPU {
 
                 self.registers.pc.wrapping_add(2)
             }
+            Instruction::CP(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                self.compare(value);
+                self.registers.pc.wrapping_add(pc_offset)
+            }
             Instruction::XOR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.xor(value);
@@ -938,6 +953,14 @@ impl CPU {
         let mask = 0b111_1111_1111;
         self.registers.f.half_carry = (value & mask) + (hl & mask) > mask;
         new_value
+    }
+
+    fn compare(&mut self, value: u8) {
+        let a_value = self.registers.a;
+        self.registers.f.zero = a_value == value;
+        self.registers.f.subtract = true;
+        self.registers.f.half_carry = (a_value & 0x0F) < (value & 0x0F);
+        self.registers.f.carry = a_value < value;
     }
 
     fn increment(&mut self, value: u8) -> u8 {
