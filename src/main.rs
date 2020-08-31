@@ -513,7 +513,7 @@ impl ArithmeticSource {
             ArithmeticSource::L => cpu.registers.l = value,
             ArithmeticSource::HL_INDIRECT => {
                 cpu.bus.write_byte(value, cpu.registers.get_hl());
-            },
+            }
             ArithmeticSource::D8 => panic!("Trying to set the byte for a literal d8!"),
         };
     }
@@ -608,8 +608,8 @@ impl DMG01 {
     fn new(cart: Option<Cartridge>) -> DMG01 {
         use std::cmp::min;
 
-        let mut memory: [u8; 0xFFFF] = [0; 0xFFFF];
-        let size_to_copy = min(0xFFFF, cart.as_ref().unwrap().rom.len());
+        let mut memory: [u8; 0x10000] = [0; 0x10000];
+        let size_to_copy = min(0x10000, cart.as_ref().unwrap().rom.len());
         memory[0..size_to_copy].copy_from_slice(&cart.unwrap().rom.as_slice());
 
         DMG01 {
@@ -631,7 +631,13 @@ impl DMG01 {
                     pc: 0,
                     sp: 0,
                 },
-                bus: MemoryBus { memory },
+                bus: MemoryBus {
+                    memory,
+                    ppu: PPU {
+                        vram: [0; VRAM_SIZE],
+                        tile_set: [Tile::empty_tile(); 384],
+                    },
+                },
             },
         }
     }
@@ -643,24 +649,131 @@ struct CPU {
 }
 
 struct MemoryBus {
-    memory: [u8; 0xFFFF],
+    memory: [u8; 0x10000],
+    ppu: PPU,
 }
 
 impl MemoryBus {
     fn read_byte(&self, address: u16) -> u8 {
-        self.memory[address as usize]
+        let address = address as usize;
+        match address {
+            VRAM_BEGIN..=VRAM_END => self.ppu.read_vram(address - VRAM_BEGIN),
+            _ => self.memory[address],
+        }
     }
 
     fn read_byte_from_offset(&self, address_offset: u8) -> u8 {
-        self.memory[address_offset as usize + 0xFF00]
+        self.read_byte(address_offset as u16 + 0xFF00)
     }
 
     fn write_byte(&mut self, value: u8, address: u16) {
-        self.memory[address as usize] = value;
+        let address = address as usize;
+        match address {
+            VRAM_BEGIN..=VRAM_END => self.ppu.write_vram(value, address - VRAM_BEGIN),
+            _ => self.memory[address] = value,
+        }
     }
 
     fn write_byte_to_offset(&mut self, value: u8, address_offset: u8) {
-        self.memory[address_offset as usize + 0xFF00] = value;
+        self.write_byte(value, address_offset as u16 + 0xFF00)
+    }
+}
+
+const VRAM_BEGIN: usize = 0x8000;
+const VRAM_END: usize = 0x9FFF;
+const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
+const BG_MAP_START: usize = 0x9800;
+const BG_MAP_END: usize = 0x9BFF;
+
+struct PPU {
+    vram: [u8; VRAM_SIZE],
+    tile_set: [Tile; 384],
+}
+
+impl PPU {
+    fn read_vram(&self, address: usize) -> u8 {
+        self.vram[address]
+    }
+
+    fn write_vram(&mut self, value: u8, address: usize) {
+        self.vram[address] = value;
+
+        // Addresses outside this range are not in the tile set.
+        if address >= 0x1800 {
+            return;
+        }
+
+        // Determine the even address corresponding to this address.
+        let even_address = address & 0xFFFE;
+        let byte1 = self.vram[even_address];
+        let byte2 = self.vram[even_address + 1];
+
+        // Each row is 16 bytes, and every 2 bytes is a new row.
+        let tile_index = address / 16;
+        let row_index = (address % 16) / 2;
+
+        for pixel_index in 0..8 {
+            let mask = (1 << (7 - pixel_index)) as u8;
+            let lsb = byte1 & mask;
+            let msb = byte2 & mask;
+            let pixel_value = match (msb != 0, lsb != 0) {
+                (false, false) => TilePixelValue::Zero,
+                (false, true) => TilePixelValue::One,
+                (true, false) => TilePixelValue::Two,
+                (true, true) => TilePixelValue::Three,
+            };
+            self.tile_set[tile_index].pixels[row_index][pixel_index] = pixel_value;
+        }
+    }
+
+    fn display(&self) -> Vec<u32> {
+        let mut disp: Vec<u32> = vec![];
+        let get_pixels = |tile: u8, row: u8| -> Vec<u32> {
+            let mut pixels: Vec<u32> = vec![];
+            let tile = self.tile_set[tile as usize];
+            for tile_pixel in tile.pixels[row as usize].iter() {
+                pixels.push(PPU::color(*tile_pixel));
+            }
+            pixels
+        };
+        let bg = &self.vram[BG_MAP_START - VRAM_BEGIN..BG_MAP_END - VRAM_BEGIN + 1];
+        for (idx, byte) in bg.iter().enumerate() {
+            for row in 0..8 {
+                let mut pixels = get_pixels(*byte, row);
+                disp.append(&mut pixels);
+            }
+        }
+        disp
+    }
+
+    fn color(tile_pixel: TilePixelValue) -> u32 {
+        match tile_pixel {
+            TilePixelValue::Zero => 0xFFFFFF,
+            TilePixelValue::One => 0xAAAAAA,
+            TilePixelValue::Two => 0x555555,
+            TilePixelValue::Three => 0x000000,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+enum TilePixelValue {
+    Zero,
+    One,
+    Two,
+    Three,
+}
+
+#[derive(Copy, Clone)]
+struct Tile {
+    pixels: [[TilePixelValue; 8]; 8],
+}
+
+impl Tile {
+    fn empty_tile() -> Tile {
+        Tile {
+            pixels: [[TilePixelValue::Zero; 8]; 8],
+        }
     }
 }
 
@@ -680,8 +793,7 @@ impl CPU {
 
         Instruction::from_byte(instruction_byte, prefix_instruction).ok_or(format!(
             "Unknown instruction found for {:#04x} (prefixed = {})",
-            instruction_byte,
-            prefix_instruction,
+            instruction_byte, prefix_instruction,
         ))
     }
 
@@ -865,38 +977,34 @@ impl CPU {
                 target.set_word(value, &mut self.registers);
                 self.registers.pc.wrapping_add(1)
             }
-            Instruction::INC(target) => {
-                match target {
-                    IncrementDecrementTarget::Byte(byte_target) => {
-                        let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
-                        let new_value = self.increment(value);
-                        byte_target.set_byte(new_value, self);
-                        self.registers.pc.wrapping_add(pc_offset)
-                    }
-                    IncrementDecrementTarget::Word(word_register) => {
-                        let value = word_register.get_word(&self.registers);
-                        let new_value = self.increment_word(value);
-                        word_register.set_word(new_value, &mut self.registers);
-                        self.registers.pc.wrapping_add(1)
-                    }
+            Instruction::INC(target) => match target {
+                IncrementDecrementTarget::Byte(byte_target) => {
+                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
+                    let new_value = self.increment(value);
+                    byte_target.set_byte(new_value, self);
+                    self.registers.pc.wrapping_add(pc_offset)
                 }
-            }
-            Instruction::DEC(target) => {
-                match target {
-                    IncrementDecrementTarget::Byte(byte_target) => {
-                        let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
-                        let new_value = self.decrement(value);
-                        byte_target.set_byte(new_value, self);
-                        self.registers.pc.wrapping_add(pc_offset)
-                    }
-                    IncrementDecrementTarget::Word(word_register) => {
-                        let value = word_register.get_word(&self.registers);
-                        let new_value = self.decrement_word(value);
-                        word_register.set_word(new_value, &mut self.registers);
-                        self.registers.pc.wrapping_add(1)
-                    }
+                IncrementDecrementTarget::Word(word_register) => {
+                    let value = word_register.get_word(&self.registers);
+                    let new_value = self.increment_word(value);
+                    word_register.set_word(new_value, &mut self.registers);
+                    self.registers.pc.wrapping_add(1)
                 }
-            }
+            },
+            Instruction::DEC(target) => match target {
+                IncrementDecrementTarget::Byte(byte_target) => {
+                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
+                    let new_value = self.decrement(value);
+                    byte_target.set_byte(new_value, self);
+                    self.registers.pc.wrapping_add(pc_offset)
+                }
+                IncrementDecrementTarget::Word(word_register) => {
+                    let value = word_register.get_word(&self.registers);
+                    let new_value = self.decrement_word(value);
+                    word_register.set_word(new_value, &mut self.registers);
+                    self.registers.pc.wrapping_add(1)
+                }
+            },
             Instruction::RL(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, false);
@@ -1028,8 +1136,7 @@ impl CPU {
         if take_jump {
             self.push(address_to_return_to);
             address_if_taken
-        }
-        else {
+        } else {
             address_to_return_to
         }
     }
@@ -1037,13 +1144,17 @@ impl CPU {
     fn ret(&mut self, take_jump: bool) -> u16 {
         if take_jump {
             self.pop()
-        }
-        else {
+        } else {
             self.registers.pc.wrapping_add(1)
         }
     }
 
-    fn rotate_through_carry(&mut self, value: u8, direction: RotateDirection, force_zero: bool) -> u8 {
+    fn rotate_through_carry(
+        &mut self,
+        value: u8,
+        direction: RotateDirection,
+        force_zero: bool,
+    ) -> u8 {
         let rotated_value = match direction {
             RotateDirection::Left => value.rotate_left(1),
             RotateDirection::Right => value.rotate_right(1),
@@ -1066,10 +1177,12 @@ impl CPU {
 
     fn push(&mut self, value: u16) {
         self.registers.sp = self.registers.sp.wrapping_sub(1);
-        self.bus.write_byte(((value & 0xFF00) >> 8) as u8, self.registers.sp);
+        self.bus
+            .write_byte(((value & 0xFF00) >> 8) as u8, self.registers.sp);
 
         self.registers.sp = self.registers.sp.wrapping_sub(1);
-        self.bus.write_byte((value & 0x00FF) as u8, self.registers.sp);
+        self.bus
+            .write_byte((value & 0x00FF) as u8, self.registers.sp);
     }
 
     fn pop(&mut self) -> u16 {
@@ -1109,15 +1222,18 @@ fn main() {
     };
 
     use minifb::{Window, WindowOptions};
-    let mut window = match Window::new("DMG-01", 256, 256, WindowOptions::default())
-    {
+    let mut window = match Window::new("DMG-01", 256, 256, WindowOptions::default()) {
         Ok(win) => win,
         Err(_) => panic!("Could not create window!"),
     };
+    window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
     let mut gameboy = DMG01::new(cart);
     while window.is_open() {
         gameboy.cpu.step();
-        window.update();
+        let vram: Vec<u32> = gameboy.cpu.bus.ppu.display();
+        window
+            .update_with_buffer(vram.as_slice(), 256, 256)
+            .unwrap();
     }
 }
