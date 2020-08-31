@@ -1108,8 +1108,16 @@ fn main() {
         None
     };
 
+    use minifb::{Window, WindowOptions};
+    let mut window = match Window::new("DMG-01", 256, 256, WindowOptions::default())
+    {
+        Ok(win) => win,
+        Err(_) => panic!("Could not create window!"),
+    };
+
     let mut gameboy = DMG01::new(cart);
-    loop {
+    while window.is_open() {
         gameboy.cpu.step();
+        window.update();
     }
 }
