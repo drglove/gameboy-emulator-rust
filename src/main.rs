@@ -664,6 +664,7 @@ impl MemoryBus {
         let address = address as usize;
         match address {
             VRAM_BEGIN..=VRAM_END => self.ppu.read_vram(address - VRAM_BEGIN),
+            0xFF44 => self.ppu.line,
             _ => self.memory[address],
         }
     }
