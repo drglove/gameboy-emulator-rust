@@ -852,7 +852,20 @@ impl Tile {
 }
 
 impl CPU {
-    fn step(&mut self) {
+    fn step_frame(&mut self) {
+        const TARGET_FRAMERATE_HZ: u32 = 60;
+        const CPU_CLOCK_RATE_HZ: u32 = 4194304;
+        const CYCLES_PER_FRAME: u32 = CPU_CLOCK_RATE_HZ / TARGET_FRAMERATE_HZ;
+
+        let mut cycles_executed = 0;
+        while cycles_executed < CYCLES_PER_FRAME {
+            self.step_instruction();
+            let cycles_this_instruction = 4 as u8;
+            cycles_executed += cycles_this_instruction as u32;
+        }
+    }
+
+    fn step_instruction(&mut self) {
         let instruction = self.next_instruction().unwrap();
         let next_pc = self.execute(instruction);
         self.registers.pc = next_pc;
@@ -1323,7 +1336,7 @@ fn main() {
 
     let mut gameboy = DMG01::new(cart);
     while window.is_open() {
-        gameboy.cpu.step();
+        gameboy.cpu.step_frame();
         let vram: Vec<u32> = gameboy.cpu.bus.ppu.display();
         window
             .update_with_buffer(vram.as_slice(), 256, 256)
