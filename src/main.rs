@@ -638,6 +638,7 @@ impl DMG01 {
                         tile_set: [Tile::empty_tile(); 384],
                     },
                 },
+                interrupt_master_enable: true,
             },
         }
     }
@@ -646,6 +647,7 @@ impl DMG01 {
 struct CPU {
     registers: Registers,
     bus: MemoryBus,
+    interrupt_master_enable: bool,
 }
 
 struct MemoryBus {
@@ -676,6 +678,78 @@ impl MemoryBus {
 
     fn write_byte_to_offset(&mut self, value: u8, address_offset: u8) {
         self.write_byte(value, address_offset as u16 + 0xFF00)
+    }
+}
+
+#[derive(Copy, Clone)]
+enum Interrupt {
+    VBlank,
+    LCDStat,
+    Timer,
+    Serial,
+    Joypad,
+}
+
+impl Interrupt {
+    const INTERRUPT_ENABLE_ADDRESS: u16 = 0xFFFF;
+    const INTERRUPT_FLAG_ADDRESS: u16 = 0xFF0F;
+
+    fn get_interrupts_to_process(bus: &MemoryBus) -> Vec<Self>
+    {
+        let mut interrupts: Vec<Interrupt> = vec![];
+        let all_interrupts = vec![Interrupt::VBlank, Interrupt::LCDStat, Interrupt::Timer, Interrupt::Serial, Interrupt::Joypad];
+        for interrupt in all_interrupts {
+            if interrupt.is_interrupt_enabled(bus) && interrupt.is_interrupt_flag_set(bus) {
+                interrupts.push(interrupt);
+            }
+        };
+        interrupts
+    }
+
+    fn is_interrupt_enabled(&self, bus: &MemoryBus) -> bool {
+        let interrupt_enabled_byte = bus.read_byte(Interrupt::INTERRUPT_ENABLE_ADDRESS);
+        let mask: u8 = self.interrupt_byte_mask();
+        (interrupt_enabled_byte & mask) == mask
+    }
+
+    fn is_interrupt_flag_set(&self, bus: &MemoryBus) -> bool {
+        let interrupt_flag_byte = bus.read_byte(Interrupt::INTERRUPT_FLAG_ADDRESS);
+        let mask = self.interrupt_byte_mask();
+        (interrupt_flag_byte & mask) == mask
+    }
+
+    fn clear_interrupt_flag(&self, bus: &mut MemoryBus) {
+        let interrupt_flag_byte = bus.read_byte(Interrupt::INTERRUPT_FLAG_ADDRESS);
+        let mask = self.interrupt_setting_byte_mask(false);
+        bus.write_byte(
+            mask & interrupt_flag_byte,
+            Interrupt::INTERRUPT_FLAG_ADDRESS,
+        );
+    }
+
+    fn interrupt_byte_mask(&self) -> u8 {
+        (match self {
+            Interrupt::VBlank => 1 << 0,
+            Interrupt::LCDStat => 1 << 1,
+            Interrupt::Timer => 1 << 2,
+            Interrupt::Serial => 1 << 3,
+            Interrupt::Joypad => 1 << 4,
+        }) as u8
+    }
+
+    fn interrupt_setting_byte_mask(&self, is_set: bool) -> u8 {
+        if is_set {
+            0xFF
+        } else {
+            ((match self {
+                Interrupt::VBlank => 1 << 0,
+                Interrupt::LCDStat => 1 << 1,
+                Interrupt::Timer => 1 << 2,
+                Interrupt::Serial => 1 << 3,
+                Interrupt::Joypad => 1 << 4,
+            }) as u8)
+                .not()
+        }
     }
 }
 
@@ -737,7 +811,7 @@ impl PPU {
             pixels
         };
         let bg = &self.vram[BG_MAP_START - VRAM_BEGIN..BG_MAP_END - VRAM_BEGIN + 1];
-        for (idx, byte) in bg.iter().enumerate() {
+        for byte in bg.iter() {
             for row in 0..8 {
                 let mut pixels = get_pixels(*byte, row);
                 disp.append(&mut pixels);
@@ -782,6 +856,14 @@ impl CPU {
         let instruction = self.next_instruction().unwrap();
         let next_pc = self.execute(instruction);
         self.registers.pc = next_pc;
+
+        if self.interrupt_master_enable {
+            let interrupts_to_process = Interrupt::get_interrupts_to_process(&self.bus);
+            for interrupt in interrupts_to_process {
+                interrupt.clear_interrupt_flag(&mut self.bus);
+                self.interrupt(interrupt);
+            }
+        }
     }
 
     fn next_instruction(&self) -> Result<Instruction, String> {
@@ -1194,13 +1276,24 @@ impl CPU {
 
         ((hi as u16) << 8) | (low as u16)
     }
+
+    fn interrupt(&mut self, interrupt: Interrupt) {
+        self.push(self.registers.pc);
+        self.registers.pc = match interrupt {
+            Interrupt::VBlank => 0x40,
+            Interrupt::LCDStat => 0x48,
+            Interrupt::Timer => 0x50,
+            Interrupt::Serial => 0x58,
+            Interrupt::Joypad => 0x60,
+        };
+    }
 }
 
 struct Cartridge {
     rom: Vec<u8>,
 }
 
-use std::ops::BitXor;
+use std::ops::{BitXor, Not};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
