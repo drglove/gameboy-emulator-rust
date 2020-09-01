@@ -937,15 +937,14 @@ impl CPU {
 
         let mut cycles_executed = 0;
         while cycles_executed < CYCLES_PER_FRAME {
-            self.step_instruction();
-            let cycles_this_instruction = 4 as u8;
+            let cycles_this_instruction = self.step_instruction();
             cycles_executed += cycles_this_instruction as u32;
         }
     }
 
-    fn step_instruction(&mut self) {
+    fn step_instruction(&mut self) -> u8 {
         let instruction = self.next_instruction().unwrap();
-        let next_pc = self.execute(instruction);
+        let (next_pc, cycles) = self.execute(instruction);
         self.registers.pc = next_pc;
 
         let interrupts_to_flag = self.bus.ppu.step(4);
@@ -962,6 +961,8 @@ impl CPU {
                 self.interrupt(interrupt);
             }
         }
+
+        cycles
     }
 
     fn next_instruction(&self) -> Result<Instruction, String> {
@@ -977,19 +978,24 @@ impl CPU {
         ))
     }
 
-    fn execute(&mut self, instruction: Instruction) -> u16 {
+    fn execute(&mut self, instruction: Instruction) -> (u16, u8) {
         match instruction {
             Instruction::ADD(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.add(value);
                 self.registers.a = new_value;
-                self.registers.pc.wrapping_add(pc_offset)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::ADD_HL(source) => {
                 let value = source.get_word(&self.registers);
                 let new_value = self.add_hl(value);
                 self.registers.set_hl(new_value);
-                self.registers.pc.wrapping_add(1)
+                (self.registers.pc.wrapping_add(1), 8)
             }
             Instruction::ADD_SP() => {
                 let value = self.read_next_byte() as i8;
@@ -1003,48 +1009,58 @@ impl CPU {
                 self.registers.f.half_carry = (sp & 0x000F) + (padded_value & 0x000F) > 0x000F;
                 self.registers.sp = new_sp;
 
-                self.registers.pc.wrapping_add(2)
+                (self.registers.pc.wrapping_add(2), 16)
             }
             Instruction::CP(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.compare(value);
-                self.registers.pc.wrapping_add(pc_offset)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::XOR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.xor(value);
                 self.registers.a = new_value;
-                self.registers.pc.wrapping_add(pc_offset)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::LD(load_type) => {
                 return match load_type {
                     LoadType::ReadWordNumericLiteral(target, _) => {
                         let value = self.read_next_word();
                         target.set_word(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(3)
+                        (self.registers.pc.wrapping_add(3), 12)
                     }
                     LoadType::ReadByteNumericLiteral(target, _) => {
                         let value = self.read_next_byte();
                         target.set_byte(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 8)
                     }
                     LoadType::ReadByteFromAddressOffset(target, source) => {
                         let address_offset = source.get_address_offset(&self.registers);
                         let value = self.bus.read_byte_from_offset(address_offset);
                         target.set_byte(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 8)
                     }
                     LoadType::ReadByteFromAddressLiteral(target, _) => {
                         let address = self.read_next_word();
                         let value = self.bus.read_byte(address);
                         target.set_byte(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(3)
+                        (self.registers.pc.wrapping_add(3), 16)
                     }
                     LoadType::ReadByteFromAddressOffsetLiteral(target, _) => {
                         let address_offset = self.read_next_byte();
                         let value = self.bus.read_byte_from_offset(address_offset);
                         target.set_byte(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 12)
                     }
                     LoadType::ReadByteFromAddress(target, source) => {
                         let address = source.get_address(&self.registers);
@@ -1059,7 +1075,7 @@ impl CPU {
                                 .set_hl(self.registers.get_hl().wrapping_sub(1)),
                             _ => {}
                         }
-                        self.registers.pc.wrapping_add(1)
+                        (self.registers.pc.wrapping_add(1), 8)
                     }
                     LoadType::WriteByteFromRegisterToAddressContainedInRegister(target, source) => {
                         let address = target.get_address(&self.registers);
@@ -1074,31 +1090,31 @@ impl CPU {
                                 .set_hl(self.registers.get_hl().wrapping_sub(1)),
                             _ => {}
                         }
-                        self.registers.pc.wrapping_add(1)
+                        (self.registers.pc.wrapping_add(1), 8)
                     }
                     LoadType::WriteByteFromRegisterToAddressOffsetLiteral(_, source) => {
                         let address_offset = self.read_next_byte();
                         let value = source.get_byte(&self.registers);
                         self.bus.write_byte_to_offset(value, address_offset);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 12)
                     }
                     LoadType::WriteByteFromRegisterToAddressLiteral(_, source) => {
                         let address = self.read_next_word();
                         let value = source.get_byte(&self.registers);
                         self.bus.write_byte(value, address);
-                        self.registers.pc.wrapping_add(3)
+                        (self.registers.pc.wrapping_add(3), 16)
                     }
                     LoadType::WriteByteFromRegisterToAddressOffsetRegister(target, source) => {
                         let address_offset = target.get_address_offset(&self.registers);
                         let value = source.get_byte(&self.registers);
                         self.bus.write_byte_to_offset(value, address_offset);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 8)
                     }
                     LoadType::WriteByteLiteralToAddressContainedInRegister(target, _) => {
                         let address = target.get_address(&self.registers);
                         let value = self.read_next_byte();
                         self.bus.write_byte(value, address);
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 12)
                     }
                     LoadType::WriteWordInRegisterToAddressContainedInLiteral(_, source) => {
                         let address = self.read_next_word();
@@ -1106,17 +1122,17 @@ impl CPU {
                         self.bus.write_byte((value & 0x00FF) as u8, address);
                         self.bus
                             .write_byte(((value & 0xFF00) >> 8) as u8, address.wrapping_add(1));
-                        self.registers.pc.wrapping_add(3)
+                        (self.registers.pc.wrapping_add(3), 20)
                     }
                     LoadType::CopyByteFromRegisterToRegister(target, source) => {
                         let value = source.get_byte(&self.registers);
                         target.set_byte(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(1)
+                        (self.registers.pc.wrapping_add(1), 4)
                     }
                     LoadType::CopyWordFromRegisterToRegister(target, source) => {
                         let value = source.get_word(&self.registers);
                         target.set_word(value, &mut self.registers);
-                        self.registers.pc.wrapping_add(1)
+                        (self.registers.pc.wrapping_add(1), 8)
                     }
                     LoadType::CopyStackOffsetToRegister(target, _) => {
                         let offset = self.read_next_byte() as i8 as u16;
@@ -1127,48 +1143,68 @@ impl CPU {
                         self.registers.f.half_carry =
                             (self.registers.sp & 0x0F) + (value & 0x0F) > 0x0F;
                         self.registers.f.carry = (self.registers.sp & 0xFF) + (value & 0xFF) > 0xFF;
-                        self.registers.pc.wrapping_add(2)
+                        (self.registers.pc.wrapping_add(2), 12)
                     }
                 }
             }
             Instruction::JR(jump_condition) => {
                 let take_jump = jump_condition.take_jump(&self.registers);
-                self.jump_relative(take_jump)
+                let cycles = if take_jump { 12 } else { 8 };
+                let next_pc = self.jump_relative(take_jump);
+                (next_pc, cycles)
             }
             Instruction::JP(jump_condition, jump_target) => {
                 let take_jump = jump_condition.take_jump(&self.registers);
-                self.jump(take_jump, jump_target)
+                let cycles = match jump_target {
+                    JumpTarget::A16 => {
+                        if take_jump { 16 } else { 12 }
+                    },
+                    JumpTarget::HL_INDIRECT => 4,
+                };
+                let next_pc = self.jump(take_jump, jump_target);
+                (next_pc, cycles)
             }
             Instruction::CALL(jump_condition) => {
                 let take_jump = jump_condition.take_jump(&self.registers);
-                self.call(take_jump)
+                let next_pc = self.call(take_jump);
+                let cycles = if take_jump { 24 } else { 12 };
+                (next_pc, cycles)
             }
             Instruction::RET(jump_condition) => {
                 let take_jump = jump_condition.take_jump(&self.registers);
-                self.ret(take_jump)
+                let next_pc = self.ret(take_jump);
+                let cycles = match jump_condition {
+                    JumpCondition::Always => 16,
+                    _ => if take_jump { 20 } else { 8 },
+                };
+                (next_pc, cycles)
             }
             Instruction::PUSH(source) => {
                 let value = source.get_word(&self.registers);
                 self.push(value);
-                self.registers.pc.wrapping_add(1)
+                (self.registers.pc.wrapping_add(1), 16)
             }
             Instruction::POP(target) => {
                 let value = self.pop();
                 target.set_word(value, &mut self.registers);
-                self.registers.pc.wrapping_add(1)
+                (self.registers.pc.wrapping_add(1), 12)
             }
             Instruction::INC(target) => match target {
                 IncrementDecrementTarget::Byte(byte_target) => {
                     let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
                     let new_value = self.increment(value);
                     byte_target.set_byte(new_value, self);
-                    self.registers.pc.wrapping_add(pc_offset)
+                    let cycles = match byte_target {
+                        ArithmeticSource::HL_INDIRECT => 12,
+                        _ => 4,
+                    };
+                    (self.registers.pc.wrapping_add(pc_offset), cycles)
                 }
                 IncrementDecrementTarget::Word(word_register) => {
                     let value = word_register.get_word(&self.registers);
                     let new_value = self.increment_word(value);
                     word_register.set_word(new_value, &mut self.registers);
-                    self.registers.pc.wrapping_add(1)
+                    (self.registers.pc.wrapping_add(1), 8)
                 }
             },
             Instruction::DEC(target) => match target {
@@ -1176,38 +1212,54 @@ impl CPU {
                     let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
                     let new_value = self.decrement(value);
                     byte_target.set_byte(new_value, self);
-                    self.registers.pc.wrapping_add(pc_offset)
+                    let cycles = match byte_target {
+                        ArithmeticSource::HL_INDIRECT => 12,
+                        _ => 4,
+                    };
+                    (self.registers.pc.wrapping_add(pc_offset), cycles)
                 }
                 IncrementDecrementTarget::Word(word_register) => {
                     let value = word_register.get_word(&self.registers);
                     let new_value = self.decrement_word(value);
                     word_register.set_word(new_value, &mut self.registers);
-                    self.registers.pc.wrapping_add(1)
+                    (self.registers.pc.wrapping_add(1), 8)
                 }
             },
             Instruction::RL(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, false);
                 source.set_byte(new_value, self);
-                self.registers.pc.wrapping_add(pc_offset + 1)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::RLA() => {
                 let source = ArithmeticSource::A;
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, true);
                 source.set_byte(new_value, self);
-                self.registers.pc.wrapping_add(pc_offset)
+                (self.registers.pc.wrapping_add(pc_offset), 4)
             }
             Instruction::RR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Right, false);
                 source.set_byte(new_value, self);
-                self.registers.pc.wrapping_add(pc_offset + 1)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::BIT(bit_to_test, source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.bit_test(value, bit_to_test);
-                self.registers.pc.wrapping_add(pc_offset)
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
         }
     }
