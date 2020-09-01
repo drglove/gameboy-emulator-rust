@@ -698,15 +698,20 @@ impl Interrupt {
     const INTERRUPT_ENABLE_ADDRESS: u16 = 0xFFFF;
     const INTERRUPT_FLAG_ADDRESS: u16 = 0xFF0F;
 
-    fn get_interrupts_to_process(bus: &MemoryBus) -> Vec<Self>
-    {
+    fn get_interrupts_to_process(bus: &MemoryBus) -> Vec<Self> {
         let mut interrupts: Vec<Interrupt> = vec![];
-        let all_interrupts = vec![Interrupt::VBlank, Interrupt::LCDStat, Interrupt::Timer, Interrupt::Serial, Interrupt::Joypad];
+        let all_interrupts = vec![
+            Interrupt::VBlank,
+            Interrupt::LCDStat,
+            Interrupt::Timer,
+            Interrupt::Serial,
+            Interrupt::Joypad,
+        ];
         for interrupt in all_interrupts {
             if interrupt.is_interrupt_enabled(bus) && interrupt.is_interrupt_flag_set(bus) {
                 interrupts.push(interrupt);
             }
-        };
+        }
         interrupts
     }
 
@@ -884,8 +889,7 @@ impl PPU {
         }
     }
 
-    fn get_pixels_from_tile_for_row(&self, tile: u8, row: u8) -> [u32; 8]
-    {
+    fn get_pixels_from_tile_for_row(&self, tile: u8, row: u8) -> [u32; 8] {
         let mut pixels = [0; 8];
         let tile = self.tile_set[tile as usize];
         for (column, tile_pixel) in tile.pixels[row as usize].iter().enumerate() {
@@ -1387,9 +1391,9 @@ struct Cartridge {
     rom: Vec<u8>,
 }
 
+use std::collections::HashSet;
 use std::ops::{BitXor, Not};
 use structopt::StructOpt;
-use std::collections::HashSet;
 
 #[derive(Debug, StructOpt)]
 struct Cli {
