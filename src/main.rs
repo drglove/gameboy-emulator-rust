@@ -636,6 +636,10 @@ impl DMG01 {
                     ppu: PPU {
                         vram: [0; VRAM_SIZE],
                         tile_set: [Tile::empty_tile(); 384],
+                        mode: PPUMode::HBlank,
+                        cycles: 0,
+                        line: 0,
+                        framebuffer: [[0; 256]; 256],
                     },
                 },
                 interrupt_master_enable: true,
@@ -681,7 +685,7 @@ impl MemoryBus {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 enum Interrupt {
     VBlank,
     LCDStat,
@@ -718,9 +722,17 @@ impl Interrupt {
         (interrupt_flag_byte & mask) == mask
     }
 
+    fn set_interrupt_flag(&self, bus: &mut MemoryBus) {
+        self.set_interrupt_flag_to_value(true, bus);
+    }
+
     fn clear_interrupt_flag(&self, bus: &mut MemoryBus) {
+        self.set_interrupt_flag_to_value(false, bus);
+    }
+
+    fn set_interrupt_flag_to_value(&self, value: bool, bus: &mut MemoryBus) {
         let interrupt_flag_byte = bus.read_byte(Interrupt::INTERRUPT_FLAG_ADDRESS);
-        let mask = self.interrupt_setting_byte_mask(false);
+        let mask = self.interrupt_setting_byte_mask(value);
         bus.write_byte(
             mask & interrupt_flag_byte,
             Interrupt::INTERRUPT_FLAG_ADDRESS,
@@ -762,6 +774,17 @@ const BG_MAP_END: usize = 0x9BFF;
 struct PPU {
     vram: [u8; VRAM_SIZE],
     tile_set: [Tile; 384],
+    mode: PPUMode,
+    cycles: u16,
+    line: u8,
+    framebuffer: [[u32; 256]; 256],
+}
+
+enum PPUMode {
+    HBlank,
+    VBlank,
+    OAMAccess,
+    VRAMAccess,
 }
 
 impl PPU {
@@ -800,24 +823,75 @@ impl PPU {
         }
     }
 
-    fn display(&self) -> Vec<u32> {
-        let mut disp: Vec<u32> = vec![];
-        let get_pixels = |tile: u8, row: u8| -> Vec<u32> {
-            let mut pixels: Vec<u32> = vec![];
-            let tile = self.tile_set[tile as usize];
-            for tile_pixel in tile.pixels[row as usize].iter() {
-                pixels.push(PPU::color(*tile_pixel));
+    fn step(&mut self, cycles: u8) -> HashSet<Interrupt> {
+        self.cycles += cycles as u16;
+
+        let mut interrupts = HashSet::new();
+        match self.mode {
+            PPUMode::HBlank => {
+                if self.cycles >= 200 {
+                    self.cycles = self.cycles % 200;
+                    self.line += 1;
+
+                    if self.line >= 144 {
+                        self.mode = PPUMode::VBlank;
+                        interrupts.insert(Interrupt::VBlank);
+                    } else {
+                        self.mode = PPUMode::OAMAccess;
+                    }
+                }
             }
-            pixels
-        };
-        let bg = &self.vram[BG_MAP_START - VRAM_BEGIN..BG_MAP_END - VRAM_BEGIN + 1];
-        for byte in bg.iter() {
-            for row in 0..8 {
-                let mut pixels = get_pixels(*byte, row);
-                disp.append(&mut pixels);
+            PPUMode::VBlank => {
+                if self.cycles >= 456 {
+                    self.cycles = self.cycles % 456;
+                    self.line += 1;
+
+                    if self.line == 154 {
+                        self.mode = PPUMode::OAMAccess;
+                        self.line = 0;
+                    }
+                }
+            }
+            PPUMode::OAMAccess => {
+                if self.cycles >= 80 {
+                    self.cycles = self.cycles % 80;
+                    self.mode = PPUMode::VRAMAccess;
+                }
+            }
+            PPUMode::VRAMAccess => {
+                if self.cycles >= 172 {
+                    self.cycles = self.cycles % 172;
+                    self.mode = PPUMode::HBlank;
+                    self.render_line();
+                }
             }
         }
-        disp
+        interrupts
+    }
+
+    fn render_line(&mut self) {
+        let bg_start = BG_MAP_START - VRAM_BEGIN;
+        let row_bg_size = 32 as usize; // 32 tiles per row
+        let row_bg_start = bg_start + self.line as usize * row_bg_size;
+        let row_bg_end = row_bg_start + row_bg_size;
+        let bg = &self.vram[row_bg_start..row_bg_end];
+        for (column, byte) in bg.iter().enumerate() {
+            let pixels = self.get_pixels_from_tile_for_row(*byte, self.line % 8);
+            let col_bg_start = column * 8;
+            for (pixel_column, pixel_colour) in pixels.iter().enumerate() {
+                self.framebuffer[self.line as usize][col_bg_start + pixel_column] = *pixel_colour;
+            }
+        }
+    }
+
+    fn get_pixels_from_tile_for_row(&self, tile: u8, row: u8) -> [u32; 8]
+    {
+        let mut pixels = [0; 8];
+        let tile = self.tile_set[tile as usize];
+        for (column, tile_pixel) in tile.pixels[row as usize].iter().enumerate() {
+            pixels[column] = PPU::color(*tile_pixel);
+        }
+        pixels
     }
 
     fn color(tile_pixel: TilePixelValue) -> u32 {
@@ -869,6 +943,13 @@ impl CPU {
         let instruction = self.next_instruction().unwrap();
         let next_pc = self.execute(instruction);
         self.registers.pc = next_pc;
+
+        let interrupts_to_flag = self.bus.ppu.step(4);
+        for interrupt in interrupts_to_flag {
+            if interrupt.is_interrupt_enabled(&self.bus) {
+                interrupt.set_interrupt_flag(&mut self.bus);
+            }
+        }
 
         if self.interrupt_master_enable {
             let interrupts_to_process = Interrupt::get_interrupts_to_process(&self.bus);
@@ -1308,6 +1389,7 @@ struct Cartridge {
 
 use std::ops::{BitXor, Not};
 use structopt::StructOpt;
+use std::collections::HashSet;
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -1337,9 +1419,14 @@ fn main() {
     let mut gameboy = DMG01::new(cart);
     while window.is_open() {
         gameboy.cpu.step_frame();
-        let vram: Vec<u32> = gameboy.cpu.bus.ppu.display();
+        let mut framebuffer_flattened = vec![];
+        for row in gameboy.cpu.bus.ppu.framebuffer.iter() {
+            for colour in row.iter() {
+                framebuffer_flattened.push(*colour);
+            }
+        }
         window
-            .update_with_buffer(vram.as_slice(), 256, 256)
+            .update_with_buffer(framebuffer_flattened.as_slice(), 256, 256)
             .unwrap();
     }
 }
