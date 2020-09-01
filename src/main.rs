@@ -1158,8 +1158,12 @@ impl CPU {
                 let take_jump = jump_condition.take_jump(&self.registers);
                 let cycles = match jump_target {
                     JumpTarget::A16 => {
-                        if take_jump { 16 } else { 12 }
-                    },
+                        if take_jump {
+                            16
+                        } else {
+                            12
+                        }
+                    }
                     JumpTarget::HL_INDIRECT => 4,
                 };
                 let next_pc = self.jump(take_jump, jump_target);
@@ -1176,7 +1180,13 @@ impl CPU {
                 let next_pc = self.ret(take_jump);
                 let cycles = match jump_condition {
                     JumpCondition::Always => 16,
-                    _ => if take_jump { 20 } else { 8 },
+                    _ => {
+                        if take_jump {
+                            20
+                        } else {
+                            8
+                        }
+                    }
                 };
                 (next_pc, cycles)
             }
