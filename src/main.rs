@@ -38,6 +38,7 @@ enum Instruction {
     BIT(u8, ArithmeticSource),
     DI,
     EI,
+    RETI,
 }
 
 enum LoadType {
@@ -421,6 +422,7 @@ impl Instruction {
                 0xF1 => Some(Instruction::POP(WordRegister::AF)),
                 0xF3 => Some(Instruction::DI),
                 0xFB => Some(Instruction::EI),
+                0xD9 => Some(Instruction::RETI),
                 _ => None,
             }
         }
@@ -1344,6 +1346,10 @@ impl CPU {
             Instruction::EI => {
                 self.interrupt_master_enable = true;
                 (self.registers.pc.wrapping_add(1), 4)
+            }
+            Instruction::RETI => {
+                self.interrupt_master_enable = true;
+                (self.ret(true), 16)
             }
         }
     }
