@@ -1004,9 +1004,7 @@ impl CPU {
 
     fn execute(&mut self, instruction: Instruction) -> (u16, u8) {
         match instruction {
-            Instruction::NOP => {
-                (self.registers.pc.wrapping_add(1), 4)
-            }
+            Instruction::NOP => (self.registers.pc.wrapping_add(1), 4),
             Instruction::ADD(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.add(value);
@@ -1549,7 +1547,7 @@ struct Cartridge {
 }
 
 use std::collections::HashSet;
-use std::ops::{BitXor, Not, BitOr, BitAnd};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
