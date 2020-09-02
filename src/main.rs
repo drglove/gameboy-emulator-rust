@@ -971,6 +971,10 @@ impl PPU {
     }
 }
 
+fn dump_bytes(bytes: &[u8], filename: &str) {
+    std::fs::write(filename, bytes).unwrap();
+}
+
 #[derive(Copy, Clone)]
 enum TilePixelValue {
     Zero,
