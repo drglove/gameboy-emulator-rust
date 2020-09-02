@@ -34,6 +34,7 @@ enum Instruction {
     RR(ArithmeticSource),
     BIT(u8, ArithmeticSource),
     DI,
+    EI,
 }
 
 enum LoadType {
@@ -405,6 +406,7 @@ impl Instruction {
                 0xE1 => Some(Instruction::POP(WordRegister::HL)),
                 0xF1 => Some(Instruction::POP(WordRegister::AF)),
                 0xF3 => Some(Instruction::DI),
+                0xFB => Some(Instruction::EI),
                 _ => None,
             }
         }
@@ -1318,6 +1320,10 @@ impl CPU {
             }
             Instruction::DI => {
                 self.interrupt_master_enable = false;
+                (self.registers.pc.wrapping_add(1), 4)
+            }
+            Instruction::EI => {
+                self.interrupt_master_enable = true;
                 (self.registers.pc.wrapping_add(1), 4)
             }
         }
