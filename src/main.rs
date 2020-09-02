@@ -34,6 +34,7 @@ enum Instruction {
     RL(ArithmeticSource),
     RLA(),
     RR(ArithmeticSource),
+    SCF,
     BIT(u8, ArithmeticSource),
     DI,
     EI,
@@ -272,6 +273,7 @@ impl Instruction {
                 0xB6 => Some(Instruction::OR(ArithmeticSource::HL_INDIRECT)),
                 0xB7 => Some(Instruction::OR(ArithmeticSource::A)),
                 0xF6 => Some(Instruction::OR(ArithmeticSource::D8)),
+                0x37 => Some(Instruction::SCF),
                 0x03 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::BC))),
                 0x13 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::DE))),
                 0x23 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::HL))),
@@ -1089,6 +1091,12 @@ impl CPU {
                     _ => 4,
                 };
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
+            }
+            Instruction::SCF => {
+                self.registers.f.subtract = false;
+                self.registers.f.half_carry = false;
+                self.registers.f.carry = true;
+                (self.registers.pc.wrapping_add(1), 4)
             }
             Instruction::LD(load_type) => {
                 return match load_type {
