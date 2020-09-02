@@ -19,6 +19,7 @@ enum Instruction {
     SUB(ArithmeticSource),
     CP(ArithmeticSource),
     XOR(ArithmeticSource),
+    AND(ArithmeticSource),
     OR(ArithmeticSource),
     LD(LoadType),
     JR(JumpCondition),
@@ -251,6 +252,15 @@ impl Instruction {
                 0xAE => Some(Instruction::XOR(ArithmeticSource::HL_INDIRECT)),
                 0xAF => Some(Instruction::XOR(ArithmeticSource::A)),
                 0xEE => Some(Instruction::XOR(ArithmeticSource::D8)),
+                0xA0 => Some(Instruction::AND(ArithmeticSource::B)),
+                0xA1 => Some(Instruction::AND(ArithmeticSource::C)),
+                0xA2 => Some(Instruction::AND(ArithmeticSource::D)),
+                0xA3 => Some(Instruction::AND(ArithmeticSource::E)),
+                0xA4 => Some(Instruction::AND(ArithmeticSource::H)),
+                0xA5 => Some(Instruction::AND(ArithmeticSource::L)),
+                0xA6 => Some(Instruction::AND(ArithmeticSource::HL_INDIRECT)),
+                0xA7 => Some(Instruction::AND(ArithmeticSource::A)),
+                0xE6 => Some(Instruction::AND(ArithmeticSource::D8)),
                 0xB0 => Some(Instruction::OR(ArithmeticSource::B)),
                 0xB1 => Some(Instruction::OR(ArithmeticSource::C)),
                 0xB2 => Some(Instruction::OR(ArithmeticSource::D)),
@@ -1068,6 +1078,17 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
+            Instruction::AND(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.and(value);
+                self.registers.a = new_value;
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
+            }
             Instruction::OR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.or(value);
@@ -1411,6 +1432,15 @@ impl CPU {
         new_value
     }
 
+    fn and(&mut self, value: u8) -> u8 {
+        let new_value = self.registers.a.bitand(value);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.carry = true;
+        self.registers.f.half_carry = false;
+        new_value
+    }
+
     fn or(&mut self, value: u8) -> u8 {
         let new_value = self.registers.a.bitor(value);
         self.registers.f.zero = new_value == 0;
@@ -1527,7 +1557,7 @@ struct Cartridge {
 }
 
 use std::collections::HashSet;
-use std::ops::{BitXor, Not, BitOr};
+use std::ops::{BitXor, Not, BitOr, BitAnd};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
