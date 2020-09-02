@@ -13,6 +13,7 @@ struct Registers {
 
 #[allow(non_camel_case_types)]
 enum Instruction {
+    NOP,
     ADD(ArithmeticSource),
     ADD_HL(WordRegister),
     ADD_SP(),
@@ -210,6 +211,7 @@ impl Instruction {
     fn from_byte(byte: u8, prefix_instruction: bool) -> Option<Instruction> {
         if !prefix_instruction {
             match byte {
+                0x00 => Some(Instruction::NOP),
                 0x80 => Some(Instruction::ADD(ArithmeticSource::B)),
                 0x81 => Some(Instruction::ADD(ArithmeticSource::C)),
                 0x82 => Some(Instruction::ADD(ArithmeticSource::D)),
@@ -1015,6 +1017,9 @@ impl CPU {
 
     fn execute(&mut self, instruction: Instruction) -> (u16, u8) {
         match instruction {
+            Instruction::NOP => {
+                (self.registers.pc.wrapping_add(1), 4)
+            }
             Instruction::ADD(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.add(value);
