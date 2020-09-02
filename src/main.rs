@@ -940,9 +940,9 @@ impl PPU {
     fn render_line(&mut self) {
         let bg_start = BG_MAP_START - VRAM_BEGIN;
         let row_bg_size = 32 as usize; // 32 tiles per row
-        let row_bg_start = bg_start + (self.line as usize % row_bg_size);
-        let row_bg_end = row_bg_start + row_bg_size;
-        let bg = &self.vram[row_bg_start..row_bg_end];
+        let row_bg_start = bg_start + (self.line as usize / row_bg_size);
+        let row_bg_end = row_bg_start + row_bg_size - 1;
+        let bg = &self.vram[row_bg_start..=row_bg_end];
         for (column, byte) in bg.iter().enumerate() {
             let pixels = self.get_pixels_from_tile_for_row(*byte, self.line % 8);
             let col_bg_start = column * 8;
