@@ -35,6 +35,7 @@ enum Instruction {
     RLA(),
     RR(ArithmeticSource),
     SCF,
+    CPL,
     BIT(u8, ArithmeticSource),
     DI,
     EI,
@@ -274,6 +275,7 @@ impl Instruction {
                 0xB6 => Some(Instruction::OR(ArithmeticSource::HL_INDIRECT)),
                 0xB7 => Some(Instruction::OR(ArithmeticSource::A)),
                 0xF6 => Some(Instruction::OR(ArithmeticSource::D8)),
+                0x2F => Some(Instruction::CPL),
                 0x37 => Some(Instruction::SCF),
                 0x03 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::BC))),
                 0x13 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::DE))),
@@ -1100,6 +1102,10 @@ impl CPU {
                 self.registers.f.carry = true;
                 (self.registers.pc.wrapping_add(1), 4)
             }
+            Instruction::CPL => {
+                self.registers.a = self.cpl();
+                (self.registers.pc.wrapping_add(1), 4)
+            }
             Instruction::LD(load_type) => {
                 return match load_type {
                     LoadType::ReadWordNumericLiteral(target, _) => {
@@ -1400,6 +1406,13 @@ impl CPU {
         self.registers.f.subtract = true;
         self.registers.f.half_carry = (a_value & 0x0F) < (value & 0x0F);
         self.registers.f.carry = a_value < value;
+    }
+
+    fn cpl(&mut self) -> u8 {
+        let new_value = self.registers.a.bitxor(0xFF);
+        self.registers.f.subtract = true;
+        self.registers.f.half_carry = true;
+        new_value
     }
 
     fn increment(&mut self, value: u8) -> u8 {
