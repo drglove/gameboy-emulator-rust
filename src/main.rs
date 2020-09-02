@@ -647,56 +647,25 @@ impl DMG01 {
         let mut memory: [u8; 0x10000] = [0; 0x10000];
         let size_to_copy = min(0x10000, cart.as_ref().unwrap().rom.len());
         memory[0..size_to_copy].copy_from_slice(&cart.unwrap().rom.as_slice());
-        memory[0xFF05] = 0x00;
-        memory[0xFF06] = 0x00;
-        memory[0xFF07] = 0x00;
-        memory[0xFF10] = 0x80;
-        memory[0xFF11] = 0xBF;
-        memory[0xFF12] = 0xF3;
-        memory[0xFF14] = 0xBF;
-        memory[0xFF16] = 0x3F;
-        memory[0xFF17] = 0x00;
-        memory[0xFF19] = 0xBF;
-        memory[0xFF1A] = 0x7F;
-        memory[0xFF1B] = 0xFF;
-        memory[0xFF1C] = 0x9F;
-        memory[0xFF1E] = 0xBF;
-        memory[0xFF20] = 0xFF;
-        memory[0xFF21] = 0x00;
-        memory[0xFF22] = 0x00;
-        memory[0xFF23] = 0xBF;
-        memory[0xFF24] = 0x77;
-        memory[0xFF25] = 0xF3;
-        memory[0xFF26] = 0xF1;
-        memory[0xFF40] = 0x91;
-        memory[0xFF42] = 0x00;
-        memory[0xFF43] = 0x00;
-        memory[0xFF45] = 0x00;
-        memory[0xFF47] = 0xFC;
-        memory[0xFF48] = 0xFF;
-        memory[0xFF49] = 0xFF;
-        memory[0xFF4A] = 0x00;
-        memory[0xFF4B] = 0x00;
-        memory[0xFFFF] = 0x00;
 
         DMG01 {
             cpu: CPU {
                 registers: Registers {
-                    a: 0x01,
-                    b: 0x00,
-                    c: 0x13,
-                    d: 0x00,
-                    e: 0xD8,
+                    a: 0,
+                    b: 0,
+                    c: 0,
+                    d: 0,
+                    e: 0,
                     f: FlagsRegister {
-                        zero: true,
+                        zero: false,
                         subtract: false,
-                        half_carry: true,
-                        carry: true,
+                        half_carry: false,
+                        carry: false,
                     },
-                    h: 0x01,
-                    l: 0x4D,
-                    pc: 0x0100,
-                    sp: 0xFFFE,
+                    h: 0,
+                    l: 0,
+                    pc: 0,
+                    sp: 0,
                 },
                 bus: MemoryBus {
                     memory,
@@ -1048,7 +1017,9 @@ impl CPU {
 
     fn execute(&mut self, instruction: Instruction) -> (u16, u8) {
         match instruction {
-            Instruction::NOP => (self.registers.pc.wrapping_add(1), 4),
+            Instruction::NOP => {
+                (self.registers.pc.wrapping_add(1), 4)
+            }
             Instruction::ADD(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.add(value);
@@ -1591,7 +1562,7 @@ struct Cartridge {
 }
 
 use std::collections::HashSet;
-use std::ops::{BitAnd, BitOr, BitXor, Not};
+use std::ops::{BitXor, Not, BitOr, BitAnd};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
