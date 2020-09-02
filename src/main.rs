@@ -1376,7 +1376,7 @@ impl CPU {
                     ArithmeticSource::HL_INDIRECT => 16,
                     _ => 8,
                 };
-                (self.registers.pc.wrapping_add(pc_offset), cycles)
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::DI => {
                 self.interrupt_master_enable = false;
