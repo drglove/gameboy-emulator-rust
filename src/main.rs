@@ -16,6 +16,7 @@ enum Instruction {
     ADD(ArithmeticSource),
     ADD_HL(WordRegister),
     ADD_SP(),
+    SUB(ArithmeticSource),
     CP(ArithmeticSource),
     XOR(ArithmeticSource),
     LD(LoadType),
@@ -219,6 +220,15 @@ impl Instruction {
                 0x29 => Some(Instruction::ADD_HL(WordRegister::HL)),
                 0x39 => Some(Instruction::ADD_HL(WordRegister::SP)),
                 0xE8 => Some(Instruction::ADD_SP()),
+                0x90 => Some(Instruction::SUB(ArithmeticSource::B)),
+                0x91 => Some(Instruction::SUB(ArithmeticSource::C)),
+                0x92 => Some(Instruction::SUB(ArithmeticSource::D)),
+                0x93 => Some(Instruction::SUB(ArithmeticSource::E)),
+                0x94 => Some(Instruction::SUB(ArithmeticSource::H)),
+                0x95 => Some(Instruction::SUB(ArithmeticSource::L)),
+                0x96 => Some(Instruction::SUB(ArithmeticSource::HL_INDIRECT)),
+                0x97 => Some(Instruction::SUB(ArithmeticSource::A)),
+                0xD6 => Some(Instruction::SUB(ArithmeticSource::D8)),
                 0xB8 => Some(Instruction::CP(ArithmeticSource::B)),
                 0xB9 => Some(Instruction::CP(ArithmeticSource::C)),
                 0xBA => Some(Instruction::CP(ArithmeticSource::D)),
@@ -1012,6 +1022,17 @@ impl CPU {
 
                 (self.registers.pc.wrapping_add(2), 16)
             }
+            Instruction::SUB(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.subtract(value);
+                self.registers.a = new_value;
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
+            }
             Instruction::CP(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.compare(value);
@@ -1303,6 +1324,15 @@ impl CPU {
         // Half-carry is true if the high bytes overflowed when added. This is when the 11th bit flips.
         let mask = 0b111_1111_1111;
         self.registers.f.half_carry = (value & mask) + (hl & mask) > mask;
+        new_value
+    }
+
+    fn subtract(&mut self, value: u8) -> u8 {
+        let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = true;
+        self.registers.f.carry = did_overflow;
+        self.registers.f.half_carry = (self.registers.a & 0x0F) > (value & 0x0F);
         new_value
     }
 
