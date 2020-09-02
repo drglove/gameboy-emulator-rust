@@ -19,6 +19,7 @@ enum Instruction {
     SUB(ArithmeticSource),
     CP(ArithmeticSource),
     XOR(ArithmeticSource),
+    OR(ArithmeticSource),
     LD(LoadType),
     JR(JumpCondition),
     JP(JumpCondition, JumpTarget),
@@ -249,6 +250,15 @@ impl Instruction {
                 0xAE => Some(Instruction::XOR(ArithmeticSource::HL_INDIRECT)),
                 0xAF => Some(Instruction::XOR(ArithmeticSource::A)),
                 0xEE => Some(Instruction::XOR(ArithmeticSource::D8)),
+                0xB0 => Some(Instruction::OR(ArithmeticSource::B)),
+                0xB1 => Some(Instruction::OR(ArithmeticSource::C)),
+                0xB2 => Some(Instruction::OR(ArithmeticSource::D)),
+                0xB3 => Some(Instruction::OR(ArithmeticSource::E)),
+                0xB4 => Some(Instruction::OR(ArithmeticSource::H)),
+                0xB5 => Some(Instruction::OR(ArithmeticSource::L)),
+                0xB6 => Some(Instruction::OR(ArithmeticSource::HL_INDIRECT)),
+                0xB7 => Some(Instruction::OR(ArithmeticSource::A)),
+                0xF6 => Some(Instruction::OR(ArithmeticSource::D8)),
                 0x03 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::BC))),
                 0x13 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::DE))),
                 0x23 => Some(Instruction::INC(IncrementDecrementTarget::Word(WordRegister::HL))),
@@ -1056,6 +1066,17 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
+            Instruction::OR(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.or(value);
+                self.registers.a = new_value;
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
+            }
             Instruction::LD(load_type) => {
                 return match load_type {
                     LoadType::ReadWordNumericLiteral(target, _) => {
@@ -1384,6 +1405,15 @@ impl CPU {
         new_value
     }
 
+    fn or(&mut self, value: u8) -> u8 {
+        let new_value = self.registers.a.bitor(value);
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.carry = false;
+        self.registers.f.half_carry = false;
+        new_value
+    }
+
     fn jump_relative(&self, take_jump: bool) -> u16 {
         let next_pc = self.registers.pc.wrapping_add(2);
         if take_jump {
@@ -1491,7 +1521,7 @@ struct Cartridge {
 }
 
 use std::collections::HashSet;
-use std::ops::{BitXor, Not};
+use std::ops::{BitXor, Not, BitOr};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
