@@ -774,11 +774,13 @@ impl Interrupt {
 
     fn set_interrupt_flag_to_value(&self, value: bool, bus: &mut MemoryBus) {
         let interrupt_flag_byte = bus.read_byte(Interrupt::INTERRUPT_FLAG_ADDRESS);
-        let mask = self.interrupt_setting_byte_mask(value);
-        bus.write_byte(
-            mask & interrupt_flag_byte,
-            Interrupt::INTERRUPT_FLAG_ADDRESS,
-        );
+        let mask = self.interrupt_byte_mask();
+        let new_flag_byte = if value {
+            interrupt_flag_byte.bitor(mask)
+        } else {
+            interrupt_flag_byte.bitand(mask.not())
+        };
+        bus.write_byte(new_flag_byte, Interrupt::INTERRUPT_FLAG_ADDRESS);
     }
 
     fn interrupt_byte_mask(&self) -> u8 {
@@ -789,21 +791,6 @@ impl Interrupt {
             Interrupt::Serial => 1 << 3,
             Interrupt::Joypad => 1 << 4,
         }) as u8
-    }
-
-    fn interrupt_setting_byte_mask(&self, is_set: bool) -> u8 {
-        if is_set {
-            0xFF
-        } else {
-            ((match self {
-                Interrupt::VBlank => 1 << 0,
-                Interrupt::LCDStat => 1 << 1,
-                Interrupt::Timer => 1 << 2,
-                Interrupt::Serial => 1 << 3,
-                Interrupt::Joypad => 1 << 4,
-            }) as u8)
-                .not()
-        }
     }
 }
 
