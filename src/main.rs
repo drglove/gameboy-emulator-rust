@@ -1114,7 +1114,7 @@ impl CPU {
                         let address_offset = source.get_address_offset(&self.registers);
                         let value = self.bus.read_byte_from_offset(address_offset);
                         target.set_byte(value, &mut self.registers);
-                        (self.registers.pc.wrapping_add(2), 8)
+                        (self.registers.pc.wrapping_add(1), 8)
                     }
                     LoadType::ReadByteFromAddressLiteral(target, _) => {
                         let address = self.read_next_word();
@@ -1174,7 +1174,7 @@ impl CPU {
                         let address_offset = target.get_address_offset(&self.registers);
                         let value = source.get_byte(&self.registers);
                         self.bus.write_byte_to_offset(value, address_offset);
-                        (self.registers.pc.wrapping_add(2), 8)
+                        (self.registers.pc.wrapping_add(1), 8)
                     }
                     LoadType::WriteByteLiteralToAddressContainedInRegister(target, _) => {
                         let address = target.get_address(&self.registers);
