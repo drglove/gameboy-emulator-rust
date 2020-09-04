@@ -938,27 +938,46 @@ impl PPU {
     }
 
     fn render_line(&mut self) {
-        let bg_start = BG_MAP_START - VRAM_BEGIN;
-        let row_bg_size = 32 as usize; // 32 tiles per row
-        let row_bg_start = bg_start + row_bg_size * (self.line as usize / row_bg_size);
-        let row_bg_end = row_bg_start + row_bg_size - 1;
-        let bg = &self.vram[row_bg_start..=row_bg_end];
-        for (column, byte) in bg.iter().enumerate() {
-            let pixels = self.get_pixels_from_tile_for_row(*byte, self.line % 8);
-            let col_bg_start = column * 8;
-            for (pixel_column, pixel_colour) in pixels.iter().enumerate() {
-                self.framebuffer[self.line as usize][col_bg_start + pixel_column] = *pixel_colour;
-            }
+        const BG_OFFSET: usize = BG_MAP_START - VRAM_BEGIN;
+        const PIXEL_DIMENSION_PER_TILE: usize = 8;
+        const TILES_PER_ROW: usize = 0x20;
+
+        let line = self.line.wrapping_add(0);
+        let tile_row = (line as usize) / PIXEL_DIMENSION_PER_TILE;
+
+        for pixel_column in 0..=255 {
+            let tile_column = (pixel_column as usize) / PIXEL_DIMENSION_PER_TILE;
+            let tile_address = BG_OFFSET + tile_row * TILES_PER_ROW + tile_column;
+            let tile_byte = self.vram[tile_address];
+            let pixel_index = (self.line as usize) * 256 + pixel_column;
+            self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(tile_byte, line % 8, (pixel_column % 8) as u8);
         }
     }
 
-    fn get_pixels_from_tile_for_row(&self, tile: u8, row: u8) -> [u32; 8] {
-        let mut pixels = [0; 8];
+    fn get_pixel_colour_from_tile(&self, tile: u8, row: u8, col: u8) -> u32 {
         let tile = self.tile_set[tile as usize];
-        for (column, tile_pixel) in tile.pixels[row as usize].iter().enumerate() {
-            pixels[column] = PPU::color(*tile_pixel);
+        let tile_pixel= tile.pixels[row as usize][col as usize];
+        PPU::color(tile_pixel)
+    }
+
+    fn render_entire_framebuffer(&self) -> Vec<u32> {
+        let mut framebuffer = vec![0; 256 * 256];
+        let mut current_pixel = 0;
+        for tile_row in 0..=31 {
+            for pixel_row in 0..=7 {
+                for tile_column in 0..=31 {
+                    let bg_start = BG_MAP_START - VRAM_BEGIN;
+                    let tiles_per_row = 0x20;
+                    let tile_address = bg_start + tile_row * tiles_per_row + tile_column;
+                    let tile_byte = self.vram[tile_address];
+                    for pixel_column in 0..=7 {
+                        framebuffer[current_pixel] = self.get_pixel_colour_from_tile(tile_byte, pixel_row, pixel_column);
+                        current_pixel += 1;
+                    }
+                }
+            }
         }
-        pixels
+        framebuffer
     }
 
     fn color(tile_pixel: TilePixelValue) -> u32 {
@@ -1642,14 +1661,9 @@ fn main() {
     let mut gameboy = DMG01::new(cart);
     while window.is_open() {
         gameboy.cpu.step_frame();
-        let mut framebuffer_flattened = vec![];
-        for row in gameboy.cpu.bus.ppu.framebuffer.iter() {
-            for colour in row.iter() {
-                framebuffer_flattened.push(*colour);
-            }
-        }
+
         window
-            .update_with_buffer(framebuffer_flattened.as_slice(), 256, 256)
+            .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), 256, 256)
             .unwrap();
     }
 }
