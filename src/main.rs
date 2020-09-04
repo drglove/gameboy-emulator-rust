@@ -706,7 +706,7 @@ impl DMG01 {
                         mode: PPUMode::HBlank,
                         cycles: 0,
                         line: 0,
-                        framebuffer: [[0; 256]; 256],
+                        framebuffer: vec![0; 256 * 256],
                     },
                 },
                 interrupt_master_enable: true,
@@ -845,7 +845,7 @@ struct PPU {
     mode: PPUMode,
     cycles: u16,
     line: u8,
-    framebuffer: [[u32; 256]; 256],
+    framebuffer: Vec<u32>,
 }
 
 enum PPUMode {
