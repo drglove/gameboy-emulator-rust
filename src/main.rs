@@ -942,15 +942,13 @@ impl PPU {
         const PIXEL_DIMENSION_PER_TILE: usize = 8;
         const TILES_PER_ROW: usize = 0x20;
 
-        let line = self.line.wrapping_add(0);
-        let tile_row = (line as usize) / PIXEL_DIMENSION_PER_TILE;
-
         for pixel_column in 0..=255 {
+            let tile_row = (self.line as usize) / PIXEL_DIMENSION_PER_TILE;
             let tile_column = (pixel_column as usize) / PIXEL_DIMENSION_PER_TILE;
             let tile_address = BG_OFFSET + tile_row * TILES_PER_ROW + tile_column;
             let tile_byte = self.vram[tile_address];
             let pixel_index = (self.line as usize) * 256 + pixel_column;
-            self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(tile_byte, line % 8, (pixel_column % 8) as u8);
+            self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(tile_byte, self.line % 8, (pixel_column % 8) as u8);
         }
     }
 
