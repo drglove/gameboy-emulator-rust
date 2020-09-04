@@ -707,7 +707,7 @@ impl DMG01 {
                         cycles: 0,
                         line: 0,
                         scroll: (0, 0),
-                        framebuffer: vec![0; 256 * 256],
+                        framebuffer: vec![0; LCD_WIDTH as usize * LCD_HEIGHT as usize],
                     },
                 },
                 interrupt_master_enable: true,
@@ -843,6 +843,8 @@ const VRAM_END: usize = 0x9FFF;
 const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
 const BG_MAP_START: usize = 0x9800;
 const BG_MAP_END: usize = 0x9BFF;
+const LCD_WIDTH: u8 = 160;
+const LCD_HEIGHT: u8 = 144;
 
 struct PPU {
     vram: [u8; VRAM_SIZE],
@@ -907,7 +909,7 @@ impl PPU {
                     self.cycles = self.cycles % 200;
                     self.line += 1;
 
-                    if self.line >= 144 {
+                    if self.line >= LCD_HEIGHT {
                         self.mode = PPUMode::VBlank;
                         interrupts.insert(Interrupt::VBlank);
                     } else {
@@ -956,8 +958,11 @@ impl PPU {
             let tile_column = (pixel_column as usize) / PIXEL_DIMENSION_PER_TILE;
             let tile_address = BG_OFFSET + tile_row * TILES_PER_ROW + tile_column;
             let tile_byte = self.vram[tile_address];
-            let pixel_index = (self.line as usize) * 256 + column as usize;
-            self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(tile_byte, pixel_row % 8, (pixel_column % 8) as u8);
+            let onscreen = self.line < LCD_HEIGHT && column < LCD_WIDTH;
+            if onscreen {
+                let pixel_index = (self.line as usize) * (LCD_WIDTH as usize) + column as usize;
+                self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(tile_byte, pixel_row % 8, (pixel_column % 8) as u8);
+            }
         }
     }
 
@@ -1659,7 +1664,7 @@ fn main() {
     };
 
     use minifb::{Window, WindowOptions};
-    let mut window = match Window::new("DMG-01", 256, 256, WindowOptions::default()) {
+    let mut window = match Window::new("DMG-01", LCD_WIDTH as usize, LCD_HEIGHT as usize, WindowOptions::default()) {
         Ok(win) => win,
         Err(_) => panic!("Could not create window!"),
     };
@@ -1670,7 +1675,7 @@ fn main() {
         gameboy.cpu.step_frame();
 
         window
-            .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), 256, 256)
+            .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)
             .unwrap();
     }
 }
