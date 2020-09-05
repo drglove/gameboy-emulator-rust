@@ -706,6 +706,7 @@ impl DMG01 {
                         mode: PPUMode::HBlank,
                         cycles: 0,
                         line: 0,
+                        palette: Palette::default(),
                         scroll: (0, 0),
                         framebuffer: vec![0; LCD_WIDTH as usize * LCD_HEIGHT as usize],
                     },
@@ -738,6 +739,7 @@ impl MemoryBus {
             0xFF42 => self.ppu.scroll.1,
             0xFF43 => self.ppu.scroll.0,
             0xFF44 => self.ppu.line,
+            0xFF47 => u8::from(&self.ppu.palette),
             _ => self.memory[address],
         }
     }
@@ -753,6 +755,7 @@ impl MemoryBus {
             VRAM_BEGIN..=VRAM_END => self.ppu.write_vram(value, address - VRAM_BEGIN),
             0xFF42 => self.ppu.scroll.1 = value,
             0xFF43 => self.ppu.scroll.0 = value,
+            0xFF47 => self.ppu.palette = Palette::from(value),
             0xFF50 if !self.finished_boot => self.finished_boot = true,
             _ => self.memory[address] = value,
         }
@@ -852,6 +855,7 @@ struct PPU {
     mode: PPUMode,
     cycles: u16,
     line: u8,
+    palette: Palette,
     scroll: (u8, u8),
     framebuffer: Vec<u32>,
 }
@@ -969,7 +973,7 @@ impl PPU {
     fn get_pixel_colour_from_tile(&self, tile: u8, row: u8, col: u8) -> u32 {
         let tile = self.tile_set[tile as usize];
         let tile_pixel= tile.pixels[row as usize][col as usize];
-        PPU::color(tile_pixel)
+        self.palette.get_colour(&tile_pixel)
     }
 
     fn render_entire_framebuffer(&self) -> Vec<u32> {
@@ -991,27 +995,114 @@ impl PPU {
         }
         framebuffer
     }
-
-    fn color(tile_pixel: TilePixelValue) -> u32 {
-        match tile_pixel {
-            TilePixelValue::Zero => 0xFFFFFF,
-            TilePixelValue::One => 0xAAAAAA,
-            TilePixelValue::Two => 0x555555,
-            TilePixelValue::Three => 0x000000,
-        }
-    }
 }
 
 fn dump_bytes(bytes: &[u8], filename: &str) {
     std::fs::write(filename, bytes).unwrap();
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 enum TilePixelValue {
     Zero,
     One,
     Two,
     Three,
+}
+
+impl TilePixelValue {
+    fn bit_position(&self) -> u8 {
+        match self {
+            TilePixelValue::Zero => 0,
+            TilePixelValue::One => 2,
+            TilePixelValue::Two => 4,
+            TilePixelValue::Three => 6,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+enum Shade {
+    White,
+    LightGray,
+    DarkGray,
+    Black,
+}
+
+impl Shade {
+    fn colour(&self) -> u32 {
+        match self {
+            Shade::White => 0xF8F8F8,
+            Shade::LightGray => 0xA8A8A8,
+            Shade::DarkGray => 0x505050,
+            Shade::Black => 0x000000,
+        }
+    }
+}
+
+impl std::convert::From<&Shade> for u8 {
+    fn from(shade: &Shade) -> Self {
+        match *shade {
+            Shade::White => 0b00,
+            Shade::LightGray => 0b01,
+            Shade::DarkGray => 0b10,
+            Shade::Black => 0b11,
+        }
+    }
+}
+
+impl std::convert::From<u8> for Shade {
+    fn from(value: u8) -> Self {
+        match value & 0b11 {
+            0b00 => Shade::White,
+            0b01 => Shade::LightGray,
+            0b10 => Shade::DarkGray,
+            0b11 => Shade::Black,
+            _ => unreachable!(),
+        }
+    }
+}
+
+struct Palette {
+    shades: HashMap<TilePixelValue, Shade>,
+}
+
+impl Palette {
+    fn get_colour(&self, tile_pixel: &TilePixelValue) -> u32 {
+        self.shades.get(tile_pixel).expect("Unknown palette colour for tile pixel!").colour()
+    }
+}
+
+impl Default for Palette {
+    fn default() -> Self {
+        Palette {
+            shades: [(TilePixelValue::Zero, Shade::White), (TilePixelValue::One, Shade::LightGray), (TilePixelValue::Two, Shade::DarkGray), (TilePixelValue::Three, Shade::Black)].iter().cloned().collect(),
+        }
+    }
+}
+
+impl std::convert::From<&Palette> for u8 {
+    fn from(palette: &Palette) -> u8 {
+        let mut byte = 0;
+        for (tile_pixel, shade) in &palette.shades {
+            let shade_bits = u8::from(shade);
+            byte = byte | (shade_bits << tile_pixel.bit_position());
+        }
+        byte
+    }
+}
+
+impl std::convert::From<u8> for Palette {
+    fn from(value: u8) -> Self {
+        let mut shades: HashMap<TilePixelValue, Shade> = Default::default();
+        for tile_pixel in [TilePixelValue::Zero, TilePixelValue::One, TilePixelValue::Two, TilePixelValue::Three].iter() {
+            let bit_position = tile_pixel.bit_position();
+            let mask = 0b11 << bit_position;
+            let shade_bits = (value & mask) >> bit_position;
+            let shade = Shade::from(shade_bits);
+            shades.insert(*tile_pixel, shade);
+        }
+        Palette { shades }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -1641,9 +1732,10 @@ struct Cartridge {
     rom: Vec<u8>,
 }
 
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::ops::{BitAnd, BitOr, BitXor, Not};
 use structopt::StructOpt;
+use std::hash::Hash;
 
 #[derive(Debug, StructOpt)]
 struct Cli {
