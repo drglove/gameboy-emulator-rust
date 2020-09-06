@@ -6,8 +6,9 @@ use self::instructions::{
     JumpCondition, JumpTarget, LoadType, RotateDirection,
 };
 use registers::Registers;
-use super::{Interrupt, MemoryBus, Palette, Tile, LCD_HEIGHT, LCD_WIDTH, PPU, VRAM_SIZE};
+use super::{Interrupt, MemoryBus};
 use std::ops::{BitAnd, BitOr, BitXor};
+use super::ppu::PPU;
 
 pub(crate) struct CPU {
     registers: Registers,
@@ -44,16 +45,7 @@ impl CPU {
                     0x20, 0xFB, 0x86, 0x20, 0xFE, 0x3E, 0x01, 0xE0, 0x50,
                 ],
                 finished_boot: false,
-                ppu: PPU {
-                    vram: [0; VRAM_SIZE],
-                    tile_set: [Tile::empty_tile(); 384],
-                    mode: super::PPUMode::HBlank,
-                    cycles: 0,
-                    line: 0,
-                    palette: Palette::default(),
-                    scroll: (0, 0),
-                    framebuffer: vec![0; LCD_WIDTH as usize * LCD_HEIGHT as usize],
-                },
+                ppu: PPU::new(),
             },
             interrupt_master_enable: true,
         }
