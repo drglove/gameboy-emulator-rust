@@ -1,10 +1,11 @@
 mod palette;
 mod tile;
 
-use crate::{Interrupt, BG_MAP_START, LCD_HEIGHT, LCD_WIDTH, VRAM_BEGIN, VRAM_SIZE};
+use crate::{BG_MAP_START, LCD_HEIGHT, LCD_WIDTH, VRAM_BEGIN, VRAM_SIZE};
 use palette::*;
 use std::collections::HashSet;
 use tile::Tile;
+use crate::cpu::interrupts::Interrupt;
 
 pub struct PPU {
     vram: [u8; VRAM_SIZE],

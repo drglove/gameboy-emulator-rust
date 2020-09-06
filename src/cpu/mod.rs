@@ -1,14 +1,16 @@
 mod instructions;
+pub mod interrupts;
 mod registers;
 
 use self::instructions::{
     AddressContainingRegister, ArithmeticSource, IncrementDecrementTarget, Instruction,
     JumpCondition, JumpTarget, LoadType, RotateDirection,
 };
-use registers::Registers;
-use super::{Interrupt, MemoryBus};
-use std::ops::{BitAnd, BitOr, BitXor};
 use super::ppu::PPU;
+use interrupts::Interrupt;
+use registers::Registers;
+use std::ops::{BitAnd, BitOr, BitXor};
+use super::MemoryBus;
 
 pub(crate) struct CPU {
     registers: Registers,
