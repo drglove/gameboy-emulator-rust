@@ -1,4 +1,4 @@
-pub(super) struct Sweep {
+struct Sweep {
     period: u8,
     decrease: bool,
     shift: u8,
@@ -30,7 +30,7 @@ enum DutyType {
     ThreeQuarters,
 }
 
-pub(super) struct Duty {
+struct Duty {
     duty_type: DutyType,
     length: u8,
 }
@@ -63,7 +63,7 @@ impl std::convert::From<u8> for Duty {
     }
 }
 
-pub(super) struct VolumeEnvelope {
+struct VolumeEnvelope {
     initial_volume: u8,
     increase: bool,
     period: u8,
@@ -102,9 +102,9 @@ struct Frequency {
 }
 
 pub(super) struct SquareChannel {
-    pub sweep: Option<Sweep>,
-    pub duty: Duty,
-    pub volume_envelope: VolumeEnvelope,
+    sweep: Option<Sweep>,
+    duty: Duty,
+    volume_envelope: VolumeEnvelope,
     frequency: Frequency,
     trigger: Trigger,
 }
@@ -134,5 +134,33 @@ impl SquareChannel {
             frequency: Frequency { frequency: 0 },
             trigger: Trigger::Disabled,
         }
+    }
+}
+
+pub(super) struct NoiseRegister {}
+
+impl NoiseRegister {
+    pub fn read_nr10(channel: &SquareChannel) -> u8 {
+        u8::from(channel.sweep.as_ref().unwrap())
+    }
+
+    pub fn write_nr10(value: u8, channel: &mut SquareChannel) {
+        channel.sweep = Some(Sweep::from(value))
+    }
+
+    pub fn read_nr11(channel: &SquareChannel) -> u8 {
+        u8::from(&channel.duty)
+    }
+
+    pub fn write_nr11(value: u8, channel: &mut SquareChannel) {
+        channel.duty = Duty::from(value)
+    }
+
+    pub fn read_nr12(channel: &SquareChannel) -> u8 {
+        u8::from(&channel.volume_envelope)
+    }
+
+    pub fn write_nr12(value: u8, channel: &mut SquareChannel) {
+        channel.volume_envelope = VolumeEnvelope::from(value)
     }
 }
