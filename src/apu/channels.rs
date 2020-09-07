@@ -92,9 +92,14 @@ impl std::convert::From<u8> for VolumeEnvelope {
 }
 
 enum Trigger {
-    Disabled,
-    EnabledLooping,
-    EnabledOneShot,
+    Stopped,
+    Playing,
+    Restart,
+}
+
+enum PlayMode {
+    Counter,
+    Consecutive,
 }
 
 struct Frequency {
@@ -107,6 +112,7 @@ pub(super) struct SquareChannel {
     volume_envelope: VolumeEnvelope,
     frequency: Frequency,
     trigger: Trigger,
+    play_mode: PlayMode,
 }
 
 impl SquareChannel {
@@ -132,7 +138,8 @@ impl SquareChannel {
                 period: 0,
             },
             frequency: Frequency { frequency: 0 },
-            trigger: Trigger::Disabled,
+            trigger: Trigger::Stopped,
+            play_mode: PlayMode::Consecutive,
         }
     }
 }
