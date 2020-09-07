@@ -1,4 +1,4 @@
-use self::channels::SquareChannel;
+use self::channels::{SquareChannel, Sweep};
 
 mod channels;
 
@@ -10,8 +10,8 @@ pub struct APU {
 impl APU {
     pub fn new() -> Self {
         APU {
-            square_with_sweep: SquareChannel::new(),
-            square_without_sweep: SquareChannel::new(),
+            square_with_sweep: SquareChannel::new_with_sweep(),
+            square_without_sweep: SquareChannel::new_without_sweep(),
         }
     }
 
@@ -23,8 +23,16 @@ impl APU {
     }
 
     pub fn read_io_register(&self, address: usize) -> u8 {
+        match address {
+            0xFF10 => u8::from(self.square_with_sweep.sweep.as_ref().unwrap()),
+            _ => panic!("Unknown command when reading from APU IO register!"),
+        }
     }
 
-    pub fn write_io_register(&self, value: u8, address: usize) {
+    pub fn write_io_register(&mut self, value: u8, address: usize) {
+        match address {
+            0xFF10 => self.square_with_sweep.sweep = Some(Sweep::from(value)),
+            _ => panic!("Unknown command when writing to APU IO register!"),
+        }
     }
 }

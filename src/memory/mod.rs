@@ -73,6 +73,7 @@ impl MemoryBus {
     fn read_io_register(&self, address: usize) -> u8 {
         match address {
             _ if self.ppu.supports_io_register(address) => self.ppu.read_io_register(address),
+            _ if APU::supports_io_register(address) => self.apu.read_io_register(address),
             _ => self.memory[address],
         }
     }
@@ -82,7 +83,10 @@ impl MemoryBus {
             0xFF50 if !self.finished_boot => self.finished_boot = true,
             _ if self.ppu.supports_io_register(address) => {
                 self.ppu.write_io_register(value, address)
-            }
+            },
+            _ if APU::supports_io_register(address) => {
+                self.apu.write_io_register(value, address)
+            },
             _ => self.memory[address] = value,
         }
     }

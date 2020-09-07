@@ -1,7 +1,26 @@
-struct Sweep {
+pub(super) struct Sweep {
     period: u8,
-    negate: bool,
+    decrease: bool,
     shift: u8,
+}
+
+impl std::convert::From<&Sweep> for u8 {
+    fn from(sweep: &Sweep) -> Self {
+        let sweep_time = (sweep.period & 0b111) << 4;
+        let decrease = (sweep.decrease as u8) << 3;
+        let shift = sweep.shift & 0b111;
+        sweep_time | increase | shift
+    }
+}
+
+impl std::convert::From<u8> for Sweep {
+    fn from(value: u8) -> Self {
+        Sweep {
+            period: (value & 0b1110000) >> 4,
+            decrease: (value & 0b1000) != 0,
+            shift: (value & 0b111),
+        }
+    }
 }
 
 enum DutyType {
@@ -33,16 +52,25 @@ struct Frequency {
 }
 
 pub(super) struct SquareChannel {
-    sweep: Option<Sweep>,
+    pub sweep: Option<Sweep>,
     duty: Duty,
     volume_envelope: VolumeEnvelope,
     trigger: Trigger,
 }
 
 impl SquareChannel {
-    pub fn new() -> Self {
+    pub fn new_with_sweep() -> Self {
+        let default_sweep = Some(Sweep::from(0));
+        Self::new(default_sweep)
+    }
+
+    pub fn new_without_sweep() -> Self {
+        Self::new(None)
+    }
+
+    fn new(sweep: Option<Sweep>) -> Self {
         SquareChannel {
-            sweep: None,
+            sweep,
             duty: Duty {
                 duty_type: DutyType::Eighth,
                 length: 0,
@@ -54,8 +82,5 @@ impl SquareChannel {
             },
             trigger: Trigger::Disabled,
         }
-    }
-
-    pub fn set_sweep(&mut self, value: u8) {
     }
 }
