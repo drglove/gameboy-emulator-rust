@@ -181,4 +181,27 @@ impl NoiseRegister {
         let lsb = value as u16;
         channel.frequency.frequency = msb | lsb;
     }
+
+    pub fn read_nr14(channel: &SquareChannel) -> u8 {
+        // Only the play-mode is readable
+        let play_mode: u8 = match channel.play_mode {
+            PlayMode::Counter => 1,
+            PlayMode::Consecutive => 0,
+        } << 6;
+        play_mode
+    }
+
+    pub fn write_nr14(value: u8, channel: &mut SquareChannel) {
+        if (value & 0b10000000) != 0 {
+            channel.trigger = Trigger::Restart;
+        }
+        channel.play_mode = if (value & 0b01000000) != 0 {
+            PlayMode::Counter
+        } else {
+            PlayMode::Consecutive
+        };
+        let freq_msb = ((value & 0b0111) as u16) << 8;
+        let freq_lsb = channel.frequency.frequency & 0x00FF;
+        channel.frequency.frequency = freq_msb | freq_lsb;
+    }
 }
