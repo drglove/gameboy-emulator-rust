@@ -1,6 +1,7 @@
 mod cpu;
 mod ppu;
 mod memory;
+mod utils;
 
 struct DMG01 {
     cpu: cpu::CPU,
@@ -18,10 +19,6 @@ impl DMG01 {
             cpu: cpu::CPU::new(memory),
         }
     }
-}
-
-fn dump_bytes(bytes: &[u8], filename: &str) {
-    std::fs::write(filename, bytes).unwrap();
 }
 
 struct Cartridge {
