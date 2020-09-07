@@ -165,7 +165,7 @@ impl NoiseRegister {
     }
 
     pub fn read_nr13(channel: &SquareChannel) -> u8 {
-        (channel.frequency.frequency & 0xFF) as u8
+        0
     }
 
     pub fn write_nr13(value: u8, channel: &mut SquareChannel) {
