@@ -9,7 +9,7 @@ impl std::convert::From<&Sweep> for u8 {
         let sweep_time = (sweep.period & 0b111) << 4;
         let decrease = (sweep.decrease as u8) << 3;
         let shift = sweep.shift & 0b111;
-        sweep_time | increase | shift
+        sweep_time | decrease | shift
     }
 }
 
