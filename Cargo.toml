@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 structopt = "0.3.16"
 minifb = "0.18.0"
+cpal = "0.12.1"
+blip_buf = "0.1.4"
