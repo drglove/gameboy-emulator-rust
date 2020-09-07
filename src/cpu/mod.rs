@@ -46,7 +46,7 @@ impl CPU {
         let (next_pc, cycles) = self.execute(instruction);
         self.registers.pc = next_pc;
 
-        let interrupts_to_flag = self.bus.ppu.step(4);
+        let interrupts_to_flag = self.bus.ppu.step(cycles);
         for interrupt in interrupts_to_flag {
             if interrupt.is_interrupt_enabled(&self.bus) {
                 interrupt.set_interrupt_flag(&mut self.bus);
