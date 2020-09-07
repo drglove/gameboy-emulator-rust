@@ -1,10 +1,12 @@
 use crate::ppu::PPU;
+use crate::apu::APU;
 
 pub struct MemoryBus {
     memory: [u8; 0x10000],
     boot_rom: [u8; BOOTROM_SIZE],
     finished_boot: bool,
     pub ppu: PPU,
+    apu: APU,
 }
 
 impl MemoryBus {
@@ -34,6 +36,7 @@ impl MemoryBus {
             ],
             finished_boot: false,
             ppu: PPU::new(),
+            apu: APU::new(),
         }
     }
 
