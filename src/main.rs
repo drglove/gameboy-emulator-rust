@@ -69,7 +69,7 @@ fn main() {
     let audio_supported_config = audio_supported_configs_range.next().expect("No supported audio configs found").with_max_sample_rate();
     let mut audio_config = (&audio_supported_config.config()).clone();
     audio_config.buffer_size = match audio_supported_config.buffer_size() {
-        cpal::SupportedBufferSize::Range{min, max} => BufferSize::Fixed(*min),
+        cpal::SupportedBufferSize::Range { min, .. } => BufferSize::Fixed(*min),
         cpal::SupportedBufferSize::Unknown => BufferSize::Default,
     };
     let sample_format = &audio_supported_config.sample_format();
