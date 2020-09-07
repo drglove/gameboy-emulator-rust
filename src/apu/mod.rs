@@ -27,6 +27,7 @@ impl APU {
             0xFF10 => NoiseRegister::read_nr10(&self.square_with_sweep),
             0xFF11 => NoiseRegister::read_nr11(&self.square_with_sweep),
             0xFF12 => NoiseRegister::read_nr12(&self.square_with_sweep),
+            0xFF13 => NoiseRegister::read_nr13(&self.square_with_sweep),
             _ => panic!("Unknown command when reading from APU IO register!"),
         }
     }
@@ -36,6 +37,7 @@ impl APU {
             0xFF10 => NoiseRegister::write_nr10(value, &mut self.square_with_sweep),
             0xFF11 => NoiseRegister::write_nr11(value, &mut self.square_with_sweep),
             0xFF12 => NoiseRegister::write_nr12(value, &mut self.square_with_sweep),
+            0xFF13 => NoiseRegister::write_nr13(value, &mut self.square_with_sweep),
             _ => panic!("Unknown command when writing to APU IO register!"),
         }
     }

@@ -163,4 +163,14 @@ impl NoiseRegister {
     pub fn write_nr12(value: u8, channel: &mut SquareChannel) {
         channel.volume_envelope = VolumeEnvelope::from(value)
     }
+
+    pub fn read_nr13(channel: &SquareChannel) -> u8 {
+        (channel.frequency.frequency & 0xFF) as u8
+    }
+
+    pub fn write_nr13(value: u8, channel: &mut SquareChannel) {
+        let msb = channel.frequency.frequency & 0xFF00;
+        let lsb = value as u16;
+        channel.frequency.frequency = msb | lsb;
+    }
 }
