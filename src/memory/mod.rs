@@ -6,7 +6,7 @@ pub struct MemoryBus {
     boot_rom: [u8; BOOTROM_SIZE],
     finished_boot: bool,
     pub ppu: PPU,
-    apu: APU,
+    pub apu: APU,
 }
 
 impl MemoryBus {

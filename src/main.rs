@@ -92,6 +92,7 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
     let mut gameboy = DMG01::new(cart);
+    gameboy.cpu.bus.apu.initialize_buffers(audio_config.sample_rate.0, cpu::CPU_CLOCK_RATE_HZ);
     while window.is_open() {
         gameboy.cpu.step_frame();
 

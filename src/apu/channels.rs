@@ -1,3 +1,5 @@
+use blip_buf::BlipBuf;
+
 struct Sweep {
     period: u8,
     decrease: bool,
@@ -73,7 +75,7 @@ impl std::convert::From<&VolumeEnvelope> for u8 {
     fn from(volume_envelope: &VolumeEnvelope) -> Self {
         let initial_volume = (volume_envelope.initial_volume & 0b1111) << 4;
         let envelope_direction = (volume_envelope.increase as u8) << 3;
-        let period = (volume_envelope.period & 0b111);
+        let period = volume_envelope.period & 0b111;
         initial_volume | envelope_direction | period
     }
 }
@@ -82,7 +84,7 @@ impl std::convert::From<u8> for VolumeEnvelope {
     fn from(value: u8) -> Self {
         let initial_volume = (value & 0b11110000) >> 4;
         let envelope_direction = ((value & 0b1000) >> 3) != 0;
-        let period = (value & 0b111);
+        let period = value & 0b111;
         VolumeEnvelope {
             initial_volume,
             increase: envelope_direction,
@@ -106,6 +108,12 @@ struct Frequency {
     frequency: u16,
 }
 
+pub(super) trait Channel {
+    fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
+    fn step(&mut self, prev_cycles: u32, next_cycles: u32);
+    fn end_frame(&mut self, cycles: u32);
+}
+
 pub(super) struct SquareChannel {
     sweep: Option<Sweep>,
     duty: Duty,
@@ -113,6 +121,7 @@ pub(super) struct SquareChannel {
     frequency: Frequency,
     trigger: Trigger,
     play_mode: PlayMode,
+    buffer: Option<BlipBuf>,
 }
 
 impl SquareChannel {
@@ -140,6 +149,31 @@ impl SquareChannel {
             frequency: Frequency { frequency: 0 },
             trigger: Trigger::Stopped,
             play_mode: PlayMode::Consecutive,
+            buffer: None,
+        }
+    }
+}
+
+impl Channel for SquareChannel {
+    fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32) {
+        let mut new_buffer = BlipBuf::new(sample_rate / 10);
+        new_buffer.set_rates(clock_rate as f64, sample_rate as f64);
+        self.buffer = Some(new_buffer);
+    }
+
+    fn step(&mut self, prev_cycles: u32, next_cycles: u32) {
+        let mut cycles = prev_cycles;
+        while cycles < next_cycles {
+            if let Some(buffer) = &mut self.buffer {
+                buffer.add_delta(cycles, 1);
+            }
+            cycles += 1;
+        }
+    }
+
+    fn end_frame(&mut self, cycles: u32) {
+        if let Some(buffer) = &mut self.buffer {
+            buffer.end_frame(cycles);
         }
     }
 }

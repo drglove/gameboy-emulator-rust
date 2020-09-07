@@ -17,6 +17,8 @@ pub struct CPU {
     interrupt_master_enable: bool,
 }
 
+pub const CPU_CLOCK_RATE_HZ: u32 = 4194304;
+
 impl CPU {
     pub fn new(memory: [u8; 0x10000]) -> Self {
         CPU {
@@ -28,7 +30,6 @@ impl CPU {
 
     pub fn step_frame(&mut self) {
         const TARGET_FRAMERATE_HZ: u32 = 60;
-        const CPU_CLOCK_RATE_HZ: u32 = 4194304;
         const CYCLES_PER_FRAME: u32 = CPU_CLOCK_RATE_HZ / TARGET_FRAMERATE_HZ;
 
         let mut cycles_executed = 0;
@@ -36,6 +37,8 @@ impl CPU {
             let cycles_this_instruction = self.step_instruction();
             cycles_executed += cycles_this_instruction as u32;
         }
+
+        self.bus.apu.end_frame();
     }
 
     fn step_instruction(&mut self) -> u8 {
@@ -57,6 +60,8 @@ impl CPU {
                 self.interrupt(interrupt);
             }
         }
+
+        self.bus.apu.step(cycles);
 
         cycles
     }
