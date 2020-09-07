@@ -66,10 +66,32 @@ impl std::convert::From<u8> for Duty {
     }
 }
 
-struct VolumeEnvelope {
+pub(super) struct VolumeEnvelope {
     initial_volume: u8,
-    decrease: bool,
+    increase: bool,
     period: u8,
+}
+
+impl std::convert::From<&VolumeEnvelope> for u8 {
+    fn from(volume_envelope: &VolumeEnvelope) -> Self {
+        let initial_volume = (volume_envelope.initial_volume & 0b1111) << 4;
+        let envelope_direction = (volume_envelope.increase as u8) << 3;
+        let period = (volume_envelope.period & 0b111);
+        initial_volume | envelope_direction | period
+    }
+}
+
+impl std::convert::From<u8> for VolumeEnvelope {
+    fn from(value: u8) -> Self {
+        let initial_volume = (value & 0b11110000) >> 4;
+        let envelope_direction = ((value & 0b1000) >> 3) != 0;
+        let period = (value & 0b111);
+        VolumeEnvelope {
+            initial_volume,
+            increase: envelope_direction,
+            period,
+        }
+    }
 }
 
 enum Trigger {
@@ -85,7 +107,7 @@ struct Frequency {
 pub(super) struct SquareChannel {
     pub sweep: Option<Sweep>,
     pub duty: Duty,
-    volume_envelope: VolumeEnvelope,
+    pub volume_envelope: VolumeEnvelope,
     trigger: Trigger,
 }
 
@@ -108,7 +130,7 @@ impl SquareChannel {
             },
             volume_envelope: VolumeEnvelope {
                 initial_volume: 0,
-                decrease: false,
+                increase: false,
                 period: 0,
             },
             trigger: Trigger::Disabled,

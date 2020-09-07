@@ -1,4 +1,4 @@
-use self::channels::{SquareChannel, Sweep, Duty};
+use self::channels::{Duty, SquareChannel, Sweep, VolumeEnvelope};
 
 mod channels;
 
@@ -26,6 +26,7 @@ impl APU {
         match address {
             0xFF10 => u8::from(self.square_with_sweep.sweep.as_ref().unwrap()),
             0xFF11 => u8::from(&self.square_with_sweep.duty),
+            0xFF12 => u8::from(&self.square_with_sweep.volume_envelope),
             _ => panic!("Unknown command when reading from APU IO register!"),
         }
     }
@@ -34,6 +35,7 @@ impl APU {
         match address {
             0xFF10 => self.square_with_sweep.sweep = Some(Sweep::from(value)),
             0xFF11 => self.square_with_sweep.duty = Duty::from(value),
+            0xFF12 => self.square_with_sweep.volume_envelope = VolumeEnvelope::from(value),
             _ => panic!("Unknown command when writing to APU IO register!"),
         }
     }
