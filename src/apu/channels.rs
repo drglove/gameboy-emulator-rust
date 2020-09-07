@@ -56,13 +56,10 @@ impl std::convert::From<u8> for Duty {
             0b01 => DutyType::Quarter,
             0b10 => DutyType::Half,
             0b11 => DutyType::ThreeQuarters,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         let length = value & 0b111111;
-        Duty {
-            duty_type,
-            length,
-        }
+        Duty { duty_type, length }
     }
 }
 
@@ -101,13 +98,14 @@ enum Trigger {
 }
 
 struct Frequency {
-    frequency: u32,
+    frequency: u16,
 }
 
 pub(super) struct SquareChannel {
     pub sweep: Option<Sweep>,
     pub duty: Duty,
     pub volume_envelope: VolumeEnvelope,
+    frequency: Frequency,
     trigger: Trigger,
 }
 
@@ -133,6 +131,7 @@ impl SquareChannel {
                 increase: false,
                 period: 0,
             },
+            frequency: Frequency { frequency: 0 },
             trigger: Trigger::Disabled,
         }
     }
