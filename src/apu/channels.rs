@@ -164,7 +164,8 @@ impl NoiseRegister {
         channel.volume_envelope = VolumeEnvelope::from(value)
     }
 
-    pub fn read_nr13(channel: &SquareChannel) -> u8 {
+    pub fn read_nr13(_channel: &SquareChannel) -> u8 {
+        // Frequencies are unreadable
         0
     }
 
