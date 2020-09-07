@@ -1,4 +1,4 @@
-use crate::MemoryBus;
+use crate::memory::MemoryBus;
 use std::ops::{BitOr, BitAnd, Not};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]

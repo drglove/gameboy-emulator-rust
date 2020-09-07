@@ -1,7 +1,7 @@
 mod palette;
 mod tile;
 
-use crate::{BG_MAP_START, LCD_HEIGHT, LCD_WIDTH, VRAM_BEGIN, VRAM_SIZE};
+use crate::memory::{VRAM_BEGIN, VRAM_SIZE};
 use palette::*;
 use std::collections::HashSet;
 use tile::Tile;
@@ -24,6 +24,10 @@ enum PPUMode {
     OAMAccess,
     VRAMAccess,
 }
+
+const BG_MAP_START: usize = 0x9800;
+pub const LCD_WIDTH: u8 = 160;
+pub const LCD_HEIGHT: u8 = 144;
 
 impl PPU {
     pub fn new() -> Self {

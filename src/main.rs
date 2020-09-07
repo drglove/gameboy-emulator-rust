@@ -1,5 +1,6 @@
 mod cpu;
 mod ppu;
+mod memory;
 
 struct DMG01 {
     cpu: cpu::CPU,
@@ -19,71 +20,6 @@ impl DMG01 {
     }
 }
 
-struct MemoryBus {
-    memory: [u8; 0x10000],
-    boot_rom: [u8; BOOTROM_SIZE],
-    finished_boot: bool,
-    ppu: PPU,
-}
-
-impl MemoryBus {
-    fn read_byte(&self, address: u16) -> u8 {
-        let address = address as usize;
-        match address {
-            BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => self.boot_rom[address],
-            VRAM_BEGIN..=VRAM_END => self.ppu.read_vram(address - VRAM_BEGIN),
-            IO_REGISTER_BEGIN..=IO_REGISTER_END => self.read_io_register(address),
-            _ => self.memory[address],
-        }
-    }
-
-    fn read_byte_from_offset(&self, address_offset: u8) -> u8 {
-        self.read_byte(address_offset as u16 + 0xFF00)
-    }
-
-    fn write_byte(&mut self, value: u8, address: u16) {
-        let address = address as usize;
-        match address {
-            BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => panic!("Cannot write into bootrom territory!"),
-            VRAM_BEGIN..=VRAM_END => self.ppu.write_vram(value, address - VRAM_BEGIN),
-            IO_REGISTER_BEGIN..=IO_REGISTER_END => self.write_io_register(value, address),
-            _ => self.memory[address] = value,
-        }
-    }
-
-    fn write_byte_to_offset(&mut self, value: u8, address_offset: u8) {
-        self.write_byte(value, address_offset as u16 + 0xFF00)
-    }
-
-    fn read_io_register(&self, address: usize) -> u8 {
-        match address {
-            _ if self.ppu.supports_io_register(address) => self.ppu.read_io_register(address),
-            _ => self.memory[address],
-        }
-    }
-
-    fn write_io_register(&mut self, value: u8, address: usize) {
-        match address {
-            0xFF50 if !self.finished_boot => self.finished_boot = true,
-            _ if self.ppu.supports_io_register(address) => self.ppu.write_io_register(value, address),
-            _ => self.memory[address] = value,
-        }
-    }
-}
-
-const BOOTROM_BEGIN: usize = 0x0000;
-const BOOTROM_END: usize = 0x00FF;
-const BOOTROM_SIZE: usize = BOOTROM_END - BOOTROM_BEGIN + 1;
-const VRAM_BEGIN: usize = 0x8000;
-const VRAM_END: usize = 0x9FFF;
-const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
-const IO_REGISTER_BEGIN: usize = 0xFF00;
-const IO_REGISTER_END: usize = 0xFF7F;
-const BG_MAP_START: usize = 0x9800;
-const BG_MAP_END: usize = 0x9BFF;
-const LCD_WIDTH: u8 = 160;
-const LCD_HEIGHT: u8 = 144;
-
 fn dump_bytes(bytes: &[u8], filename: &str) {
     std::fs::write(filename, bytes).unwrap();
 }
@@ -93,7 +29,6 @@ struct Cartridge {
 }
 
 use structopt::StructOpt;
-use ppu::PPU;
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -113,6 +48,7 @@ fn main() {
         None
     };
 
+    use ppu::{LCD_WIDTH, LCD_HEIGHT};
     use minifb::{Window, WindowOptions};
     let mut window = match Window::new("DMG-01", LCD_WIDTH as usize, LCD_HEIGHT as usize, WindowOptions::default()) {
         Ok(win) => win,
