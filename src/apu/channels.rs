@@ -30,9 +30,40 @@ enum DutyType {
     ThreeQuarters,
 }
 
-struct Duty {
+pub(super) struct Duty {
     duty_type: DutyType,
-    length: u16,
+    length: u8,
+}
+
+impl std::convert::From<&Duty> for u8 {
+    fn from(duty: &Duty) -> Self {
+        let duty_type: u8 = match duty.duty_type {
+            DutyType::Eighth => 0b00,
+            DutyType::Quarter => 0b01,
+            DutyType::Half => 0b10,
+            DutyType::ThreeQuarters => 0b11,
+        } << 6;
+        // Length of the duty cycle is unreadable
+        duty_type
+    }
+}
+
+impl std::convert::From<u8> for Duty {
+    fn from(value: u8) -> Self {
+        let duty_bits = (value & 0b11000000) >> 6;
+        let duty_type = match duty_bits {
+            0b00 => DutyType::Eighth,
+            0b01 => DutyType::Quarter,
+            0b10 => DutyType::Half,
+            0b11 => DutyType::ThreeQuarters,
+            _ => unreachable!()
+        };
+        let length = value & 0b111111;
+        Duty {
+            duty_type,
+            length,
+        }
+    }
 }
 
 struct VolumeEnvelope {
@@ -53,7 +84,7 @@ struct Frequency {
 
 pub(super) struct SquareChannel {
     pub sweep: Option<Sweep>,
-    duty: Duty,
+    pub duty: Duty,
     volume_envelope: VolumeEnvelope,
     trigger: Trigger,
 }
