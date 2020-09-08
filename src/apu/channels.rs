@@ -108,10 +108,25 @@ struct Frequency {
     frequency: u16,
 }
 
+pub struct StereoOutput {
+    left: Vec<f32>,
+    right: Vec<f32>,
+}
+
+impl Default for StereoOutput {
+    fn default() -> Self {
+        StereoOutput {
+            left: vec![],
+            right: vec![],
+        }
+    }
+}
+
 pub(super) trait Channel {
     fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
     fn step(&mut self, prev_cycles: u32, next_cycles: u32);
     fn end_frame(&mut self, cycles: u32);
+    fn gather_samples(&mut self) -> StereoOutput;
 }
 
 pub(super) struct SquareChannel {
@@ -122,6 +137,35 @@ pub(super) struct SquareChannel {
     trigger: Trigger,
     play_mode: PlayMode,
     buffer: Option<BlipBuf>,
+}
+
+fn gather_samples_for_buffer(buffer: Option<&mut BlipBuf>) -> StereoOutput {
+    if buffer.is_none() {
+        return StereoOutput::default();
+    }
+
+    let buffer = buffer.unwrap();
+    let samples_available = buffer.samples_avail();
+
+    let mut samples = vec![];
+    samples.reserve(samples_available as usize);
+    buffer.read_samples(samples.as_mut_slice(), false);
+
+    let mut left_samples = vec![];
+    left_samples.reserve(samples_available as usize);
+
+    let mut right_samples = vec![];
+    right_samples.reserve(samples_available as usize);
+
+    for (idx, sample) in samples.iter().enumerate() {
+        left_samples[idx] = *sample as f32;
+        right_samples[idx] = *sample as f32;
+    }
+
+    StereoOutput {
+        left: left_samples,
+        right: right_samples,
+    }
 }
 
 impl SquareChannel {
@@ -175,6 +219,10 @@ impl Channel for SquareChannel {
         if let Some(buffer) = &mut self.buffer {
             buffer.end_frame(cycles);
         }
+    }
+
+    fn gather_samples(&mut self) -> StereoOutput {
+        gather_samples_for_buffer(self.buffer.as_mut())
     }
 }
 
