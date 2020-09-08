@@ -1,4 +1,4 @@
-use self::channels::{Channel, NoiseRegister, SquareChannel};
+use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
 
 mod channels;
 
@@ -6,6 +6,10 @@ pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
     cycles: u32,
+}
+
+pub trait AudioPlayer {
+    fn play(&mut self, stereo_output: StereoOutput);
 }
 
 impl APU {
@@ -32,6 +36,13 @@ impl APU {
     pub fn end_frame(&mut self) {
         self.square_with_sweep.end_frame(self.cycles);
         self.square_without_sweep.end_frame(self.cycles);
+    }
+
+    pub fn play(&mut self, audio_player: Option<&mut dyn AudioPlayer>) {
+        let stereo_output = self.square_with_sweep.gather_samples();
+        if let Some(audio_player) = audio_player {
+            audio_player.play(stereo_output);
+        }
     }
 
     pub fn supports_io_register(address: usize) -> bool {
