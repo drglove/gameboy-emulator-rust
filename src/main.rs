@@ -34,14 +34,7 @@ struct Cli {
     rom: Option<std::path::PathBuf>,
 }
 
-fn write_audio<T: cpal::Sample>(data: &mut [T], next_sample: &mut dyn FnMut() -> f32) {
-    for sample in data.iter_mut() {
-        *sample = cpal::Sample::from::<f32>(&next_sample());
-    }
-}
-
-use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::BufferSize;
+use apu::AudioPlayer;
 
 fn main() {
     let args = Cli::from_args();
@@ -92,9 +85,13 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
     let mut gameboy = DMG01::new(cart);
-    gameboy.cpu.bus.apu.initialize_buffers(audio_config.sample_rate.0, cpu::CPU_CLOCK_RATE_HZ);
+    let mut cpal_player = apu::cpal_audio_output::CpalAudioPlayer::new().ok();
+
+    if let Some(cpal_player) = cpal_player.as_ref() {
+        gameboy.cpu.bus.apu.initialize_buffers(cpal_player.sample_rate(), cpu::CPU_CLOCK_RATE_HZ);
+    }
     while window.is_open() {
-        gameboy.cpu.step_frame();
+        gameboy.cpu.step_frame(cpal_player.as_mut());
 
         window
             .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)

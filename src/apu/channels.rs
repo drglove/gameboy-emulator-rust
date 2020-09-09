@@ -109,8 +109,8 @@ struct Frequency {
 }
 
 pub struct StereoOutput {
-    left: Vec<f32>,
-    right: Vec<f32>,
+    pub left: Vec<f32>,
+    pub right: Vec<f32>,
 }
 
 impl Default for StereoOutput {
@@ -147,16 +147,11 @@ fn gather_samples_for_buffer(buffer: Option<&mut BlipBuf>) -> StereoOutput {
     let buffer = buffer.unwrap();
     let samples_available = buffer.samples_avail();
 
-    let mut samples = vec![];
-    samples.reserve(samples_available as usize);
+    let mut samples = vec![0; samples_available as usize];
     buffer.read_samples(samples.as_mut_slice(), false);
 
-    let mut left_samples = vec![];
-    left_samples.reserve(samples_available as usize);
-
-    let mut right_samples = vec![];
-    right_samples.reserve(samples_available as usize);
-
+    let mut left_samples = vec![0f32; samples_available as usize];
+    let mut right_samples = vec![0f32; samples_available as usize];
     for (idx, sample) in samples.iter().enumerate() {
         left_samples[idx] = *sample as f32;
         right_samples[idx] = *sample as f32;

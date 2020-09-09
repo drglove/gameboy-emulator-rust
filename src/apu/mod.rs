@@ -1,6 +1,7 @@
 use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
 
 mod channels;
+pub mod cpal_audio_output;
 
 pub struct APU {
     square_with_sweep: SquareChannel,
@@ -10,6 +11,7 @@ pub struct APU {
 
 pub trait AudioPlayer {
     fn play(&mut self, stereo_output: StereoOutput);
+    fn sample_rate(&self) -> u32;
 }
 
 impl APU {
@@ -33,12 +35,14 @@ impl APU {
         self.square_without_sweep.step(prev_cycles, self.cycles);
     }
 
-    pub fn end_frame(&mut self) {
+    pub fn end_frame(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
         self.square_with_sweep.end_frame(self.cycles);
         self.square_without_sweep.end_frame(self.cycles);
+
+        self.play(audio_player);
     }
 
-    pub fn play(&mut self, audio_player: Option<&mut dyn AudioPlayer>) {
+    fn play(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
         let stereo_output = self.square_with_sweep.gather_samples();
         if let Some(audio_player) = audio_player {
             audio_player.play(stereo_output);
