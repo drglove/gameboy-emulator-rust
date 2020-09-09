@@ -48,34 +48,6 @@ fn main() {
         None
     };
 
-    let mut sample_clock = 0f32;
-    let mut next_value = move || {
-        sample_clock = (sample_clock + 1.0) % 48000.0;
-        (sample_clock * 45.0 * 2.0 * 3.141592 / 48000.0).sin()
-    };
-
-    use cpal::SampleFormat;
-    use cpal::traits::HostTrait;
-    let audio_host = cpal::default_host();
-    let audio_device = audio_host.default_output_device().expect("No audio output devices available!");
-    let mut audio_supported_configs_range = audio_device.supported_output_configs().expect("Error while querying audio configurations");
-    let audio_supported_config = audio_supported_configs_range.next().expect("No supported audio configs found").with_max_sample_rate();
-    let mut audio_config = (&audio_supported_config.config()).clone();
-    audio_config.buffer_size = match audio_supported_config.buffer_size() {
-        cpal::SupportedBufferSize::Range { min, .. } => BufferSize::Fixed(*min),
-        cpal::SupportedBufferSize::Unknown => BufferSize::Default,
-    };
-    let sample_format = &audio_supported_config.sample_format();
-    let write_fn = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-        write_audio(data, &mut next_value);
-    };
-    let stream = match sample_format {
-        SampleFormat::F32 => audio_device.build_output_stream(&audio_config, write_fn, |err| eprintln!("Error occurred on the output audio stream: {:?}", err)),
-        SampleFormat::I16 => audio_device.build_output_stream(&audio_config, write_fn, |err| eprintln!("Error occurred on the output audio stream: {:?}", err)),
-        SampleFormat::U16 => audio_device.build_output_stream(&audio_config, write_fn, |err| eprintln!("Error occurred on the output audio stream: {:?}", err)),
-    }.unwrap();
-    stream.play().unwrap();
-
     use ppu::{LCD_WIDTH, LCD_HEIGHT};
     use minifb::{Window, WindowOptions};
     let mut window = match Window::new("DMG-01", LCD_WIDTH as usize, LCD_HEIGHT as usize, WindowOptions::default()) {
