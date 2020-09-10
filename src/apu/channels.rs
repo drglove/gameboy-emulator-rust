@@ -232,7 +232,14 @@ impl Channel for SquareChannel {
     fn step(&mut self, cycles: u8) {
         let end_cycle = self.current_sampling_cycle + cycles as u32;
         while self.next_sample_cycle < end_cycle {
-            let sample = self.duty.sequence();
+            let sample = match self.trigger {
+                Trigger::Stopped => { 0 },
+                _ => {
+                    let duty_sample = self.duty.sequence();
+                    self.duty.step();
+                    duty_sample
+                }
+            };
 
             if let Some(buffer) = self.buffer.as_mut() {
                 let delta = sample - self.last_sample;
@@ -240,8 +247,6 @@ impl Channel for SquareChannel {
             }
 
             self.last_sample = sample;
-            self.duty.step();
-
             // Square period = (2048 - F) / 131072 = (2048 - F) / (CPUClockRate * 32) = (2048 - F) * 8 * 4 / CPUClockRate
             // 8 duty entries per wave form => duty entry period = (2048 - F) * 4 / CPUClockRate
             // In CPUClockRate units => period = (2048 - F) * 4
