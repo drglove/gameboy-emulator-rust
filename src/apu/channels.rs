@@ -233,7 +233,7 @@ impl Channel for SquareChannel {
         let end_cycle = self.current_sampling_cycle + cycles as u32;
         while self.next_sample_cycle < end_cycle {
             let sample = match self.trigger {
-                Trigger::Stopped => { 0 },
+                Trigger::Stopped => 0,
                 _ => {
                     let duty_sample = self.duty.sequence();
                     self.duty.step();
