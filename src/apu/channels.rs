@@ -241,9 +241,11 @@ impl Channel for SquareChannel {
                 }
             };
 
-            if let Some(buffer) = self.buffer.as_mut() {
-                let delta = sample - self.last_sample;
-                buffer.add_delta(self.next_sample_cycle, delta);
+            let delta = sample - self.last_sample;
+            if delta != 0 {
+                if let Some(buffer) = self.buffer.as_mut() {
+                    buffer.add_delta(self.next_sample_cycle, delta);
+                }
             }
 
             self.last_sample = sample;
