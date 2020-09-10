@@ -39,7 +39,7 @@ impl CPU {
             cycles_executed += cycles_this_instruction as u32;
         }
 
-        self.bus.apu.end_frame(audio_player);
+        self.bus.apu.end_frame(cycles_executed, audio_player);
     }
 
     fn step_instruction(&mut self) -> u8 {

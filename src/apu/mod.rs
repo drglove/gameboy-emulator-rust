@@ -6,7 +6,6 @@ pub mod cpal_audio_output;
 pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
-    cycles: u32,
 }
 
 pub trait AudioPlayer {
@@ -19,7 +18,6 @@ impl APU {
         APU {
             square_with_sweep: SquareChannel::new_with_sweep(),
             square_without_sweep: SquareChannel::new_without_sweep(),
-            cycles: 0,
         }
     }
 
@@ -29,15 +27,13 @@ impl APU {
     }
 
     pub fn step(&mut self, cycles: u8) {
-        let prev_cycles = self.cycles;
-        self.cycles = self.cycles.wrapping_add(cycles as u32);
-        self.square_with_sweep.step(prev_cycles, self.cycles);
-        self.square_without_sweep.step(prev_cycles, self.cycles);
+        self.square_with_sweep.step(cycles);
+        //self.square_without_sweep.step(cycles);
     }
 
-    pub fn end_frame(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
-        self.square_with_sweep.end_frame(self.cycles);
-        self.square_without_sweep.end_frame(self.cycles);
+    pub fn end_frame(&mut self, cycles: u32, audio_player: Option<&mut impl AudioPlayer>) {
+        self.square_with_sweep.end_frame(cycles);
+        //self.square_without_sweep.end_frame(cycles);
 
         self.play(audio_player);
     }

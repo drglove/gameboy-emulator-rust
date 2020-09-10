@@ -146,7 +146,7 @@ impl Default for StereoOutput {
 
 pub(super) trait Channel {
     fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
-    fn step(&mut self, prev_cycles: u32, next_cycles: u32);
+    fn step(&mut self, cycles: u8);
     fn end_frame(&mut self, cycles: u32);
     fn gather_samples(&mut self) -> StereoOutput;
 }
@@ -159,6 +159,10 @@ pub(super) struct SquareChannel {
     trigger: Trigger,
     play_mode: PlayMode,
     buffer: Option<BlipBuf>,
+    period: u32,
+    current_sampling_cycle: u32,
+    next_sample_cycle: u32,
+    last_sample: i32,
 }
 
 fn gather_samples_for_buffer(buffer: Option<&mut BlipBuf>) -> StereoOutput {
@@ -212,6 +216,10 @@ impl SquareChannel {
             trigger: Trigger::Stopped,
             play_mode: PlayMode::Consecutive,
             buffer: None,
+            period: 8192,
+            current_sampling_cycle: 0,
+            next_sample_cycle: 0,
+            last_sample: 0,
         }
     }
 }
@@ -223,17 +231,26 @@ impl Channel for SquareChannel {
         self.buffer = Some(new_buffer);
     }
 
-    fn step(&mut self, prev_cycles: u32, next_cycles: u32) {
-        let mut cycles = prev_cycles;
-        while cycles < next_cycles {
-            if let Some(buffer) = &mut self.buffer {
-                buffer.add_delta(cycles, 1);
+    fn step(&mut self, cycles: u8) {
+        let end_cycle = self.current_sampling_cycle + cycles as u32;
+        while self.next_sample_cycle < end_cycle {
+            let sample = self.duty.sequence();
+
+            if let Some(buffer) = self.buffer.as_mut() {
+                let delta = sample - self.last_sample;
+                buffer.add_delta(self.next_sample_cycle, delta);
             }
-            cycles += 1;
+
+            self.last_sample = sample;
+            self.duty.step_phase();
+            self.next_sample_cycle += self.period;
         }
+        self.current_sampling_cycle = end_cycle;
     }
 
     fn end_frame(&mut self, cycles: u32) {
+        self.current_sampling_cycle -= cycles;
+        self.next_sample_cycle -= cycles;
         if let Some(buffer) = &mut self.buffer {
             buffer.end_frame(cycles);
         }
