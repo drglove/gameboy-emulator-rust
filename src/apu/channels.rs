@@ -47,7 +47,7 @@ impl Duty {
             DutyType::ThreeQuarters => 0b00000011,
         };
         let mask = 1 << (7 - self.phase);
-        ((duty_wave_form & mask) == mask) as i32
+        (((duty_wave_form & mask) == mask) as i32) * 2 - 1
     }
 
     fn step(&mut self) {
