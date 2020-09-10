@@ -159,7 +159,6 @@ pub(super) struct SquareChannel {
     trigger: Trigger,
     play_mode: PlayMode,
     buffer: Option<BlipBuf>,
-    period: u32,
     current_sampling_cycle: u32,
     next_sample_cycle: u32,
     last_sample: i32,
@@ -216,7 +215,6 @@ impl SquareChannel {
             trigger: Trigger::Stopped,
             play_mode: PlayMode::Consecutive,
             buffer: None,
-            period: 8192,
             current_sampling_cycle: 0,
             next_sample_cycle: 0,
             last_sample: 0,
@@ -242,8 +240,13 @@ impl Channel for SquareChannel {
             }
 
             self.last_sample = sample;
-            self.duty.step_phase();
-            self.next_sample_cycle += self.period;
+            self.duty.step();
+
+            // Square period = (2048 - F) / 131072 = (2048 - F) / (CPUClockRate * 32) = (2048 - F) * 8 * 4 / CPUClockRate
+            // 8 duty entries per wave form => duty entry period = (2048 - F) * 4 / CPUClockRate
+            // In CPUClockRate units => period = (2048 - F) * 4
+            let period = (2048 - self.frequency.frequency) * 4;
+            self.next_sample_cycle += period as u32;
         }
         self.current_sampling_cycle = end_cycle;
     }
