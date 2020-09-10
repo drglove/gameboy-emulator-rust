@@ -1,12 +1,12 @@
 use super::{AudioPlayer, StereoOutput};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, Stream, StreamConfig};
+use cpal::{BufferSize, StreamConfig, Stream};
 use ringbuf::{RingBuffer, Producer};
 
 pub struct CpalAudioPlayer {
     producer: Producer<Sample>,
-    stream: Stream,
     stream_config: StreamConfig,
+    stream: Stream,
 }
 
 struct Sample {
@@ -53,8 +53,8 @@ impl CpalAudioPlayer {
 
         let audio_player = CpalAudioPlayer {
             producer,
-            stream: stream.unwrap(),
             stream_config: audio_config,
+            stream: stream.unwrap(),
         };
         audio_player.stream.play().unwrap();
 
