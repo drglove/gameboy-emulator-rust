@@ -35,6 +35,24 @@ enum DutyType {
 struct Duty {
     duty_type: DutyType,
     length: u8,
+    phase: u8,
+}
+
+impl Duty {
+    fn sequence(&self) -> i32 {
+        let duty_wave_form: u8 = match self.duty_type {
+            DutyType::Eighth => 0b01111111,
+            DutyType::Quarter => 0b00111111,
+            DutyType::Half => 0b00001111,
+            DutyType::ThreeQuarters => 0b00000011,
+        };
+        let mask = 1 << (7 - self.phase);
+        ((duty_wave_form & mask) == mask) as i32
+    }
+
+    fn step_phase(&mut self) {
+        self.phase = (self.phase + 1) % 8;
+    }
 }
 
 impl std::convert::From<&Duty> for u8 {
@@ -61,7 +79,11 @@ impl std::convert::From<u8> for Duty {
             _ => unreachable!(),
         };
         let length = value & 0b111111;
-        Duty { duty_type, length }
+        Duty {
+            duty_type,
+            length,
+            phase: 0,
+        }
     }
 }
 
@@ -179,6 +201,7 @@ impl SquareChannel {
             duty: Duty {
                 duty_type: DutyType::Eighth,
                 length: 0,
+                phase: 0,
             },
             volume_envelope: VolumeEnvelope {
                 initial_volume: 0,
