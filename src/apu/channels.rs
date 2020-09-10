@@ -50,7 +50,7 @@ impl Duty {
         ((duty_wave_form & mask) == mask) as i32
     }
 
-    fn step_phase(&mut self) {
+    fn step(&mut self) {
         self.phase = (self.phase + 1) % 8;
     }
 }
