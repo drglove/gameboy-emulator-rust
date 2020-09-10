@@ -36,6 +36,7 @@ impl CPU {
         let mut cycles_executed = 0;
         while cycles_executed < CYCLES_PER_FRAME {
             let cycles_this_instruction = self.step_instruction();
+            self.bus.apu.step(cycles_this_instruction);
             cycles_executed += cycles_this_instruction as u32;
         }
 
@@ -61,8 +62,6 @@ impl CPU {
                 self.interrupt(interrupt);
             }
         }
-
-        self.bus.apu.step(cycles);
 
         cycles
     }
