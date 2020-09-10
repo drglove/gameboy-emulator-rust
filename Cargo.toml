@@ -13,3 +13,7 @@ cpal = "0.12.1"
 blip_buf = "0.1.4"
 ringbuf = "0.2.2"
 rodio = "0.11.0"
+
+[dependencies.sdl2]
+features = ["bundled"]
+version = "0.34.3"

@@ -3,6 +3,7 @@ use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
 mod channels;
 pub mod cpal_audio_output;
 pub mod rodio_audio_output;
+pub mod sdl_audio_output;
 
 pub struct APU {
     square_with_sweep: SquareChannel,
