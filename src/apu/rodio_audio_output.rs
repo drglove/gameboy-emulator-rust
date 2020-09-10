@@ -1,4 +1,4 @@
-use rodio::{Source, Device, DeviceTrait};
+use rodio::{Device, DeviceTrait};
 use super::{AudioPlayer, StereoOutput};
 use rodio::buffer::SamplesBuffer;
 
