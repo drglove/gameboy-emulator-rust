@@ -38,9 +38,10 @@ impl CPU {
             let cycles_this_instruction = self.step_instruction();
             self.bus.apu.step(cycles_this_instruction);
             cycles_executed += cycles_this_instruction as u32;
+            self.bus.apu.end_frame();
         }
 
-        self.bus.apu.end_frame(cycles_executed, audio_player);
+        self.bus.apu.play(audio_player)
     }
 
     fn step_instruction(&mut self) -> u8 {

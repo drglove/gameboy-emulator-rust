@@ -9,6 +9,7 @@ pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
     frame_sequencer: FrameSequencer,
+    cycles: u32,
 }
 
 pub trait AudioPlayer {
@@ -29,6 +30,7 @@ impl APU {
                 timer: 0, // We want the first tick to fire
                 initial: MASTER_FRAME_SEQUENCER_CLOCKS,
             },
+            cycles: 0,
         }
     }
 
@@ -40,19 +42,24 @@ impl APU {
     }
 
     pub fn step(&mut self, cycles: u8) {
+        self.cycles += cycles as u32;
         self.square_with_sweep.step(cycles);
         //self.square_without_sweep.step(cycles);
     }
 
-    pub fn end_frame(&mut self, cycles: u32, audio_player: Option<&mut impl AudioPlayer>) {
-        self.square_with_sweep.end_frame(cycles);
-        //self.square_without_sweep.end_frame(cycles);
+    pub fn end_frame(&mut self) {
+        self.square_with_sweep.end_frame(self.cycles);
+        //self.square_without_sweep.end_frame(end_frame_cycles);
 
-        self.play(audio_player);
+        self.cycles = 0;
     }
 
-    fn play(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
-        let stereo_output = self.square_with_sweep.gather_samples();
+    fn gather_samples(&mut self) -> StereoOutput {
+        self.square_with_sweep.gather_samples()
+    }
+
+    pub fn play(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
+        let stereo_output = self.gather_samples();
         if let Some(audio_player) = audio_player {
             audio_player.play(stereo_output);
         }
