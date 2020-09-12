@@ -50,7 +50,7 @@ fn main() {
 
     use ppu::{LCD_WIDTH, LCD_HEIGHT};
     use minifb::{Window, WindowOptions};
-    let mut window = match Window::new("DMG-01", LCD_WIDTH as usize, LCD_HEIGHT as usize, WindowOptions::default()) {
+    let mut window = match Window::new("DMG-01", LCD_WIDTH as usize * 3, LCD_HEIGHT as usize * 3, WindowOptions::default()) {
         Ok(win) => win,
         Err(_) => panic!("Could not create window!"),
     };
