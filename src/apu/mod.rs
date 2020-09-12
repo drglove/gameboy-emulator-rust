@@ -1,9 +1,8 @@
 use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
+use crate::cpu::CPU;
 
 mod channels;
 pub mod cpal_audio_output;
-pub mod rodio_audio_output;
-pub mod sdl_audio_output;
 
 pub struct APU {
     square_with_sweep: SquareChannel,
@@ -12,9 +11,17 @@ pub struct APU {
     cycles: u32,
 }
 
-pub trait AudioPlayer {
-    fn play(&mut self, stereo_output: StereoOutput);
-    fn sample_rate(&self) -> u32;
+pub trait AudioLoop {}
+
+impl dyn AudioLoop {
+    pub fn run_cycles_for_desired_samples(samples_needed: u32, cpu: &mut CPU) {
+        let cycles_to_run = cpu.bus.apu.cycles_needed_to_generate_samples(samples_needed);
+        let mut cycles_ran = 0;
+        while cycles_ran < cycles_to_run {
+            let instruction_cycles = cpu.step_single_instruction();
+            cycles_ran += instruction_cycles as u32;
+        }
+    }
 }
 
 const MASTER_FRAME_SEQUENCER_CLOCK_RATE_HZ: u32 = 512;
@@ -37,32 +44,24 @@ impl APU {
     pub fn initialize_buffers(&mut self, sample_rate: u32, clock_rate: u32) {
         self.square_with_sweep
             .initialize_buffer(sample_rate, clock_rate);
-        self.square_without_sweep
-            .initialize_buffer(sample_rate, clock_rate);
     }
 
     pub fn step(&mut self, cycles: u8) {
         self.cycles += cycles as u32;
         self.square_with_sweep.step(cycles);
-        //self.square_without_sweep.step(cycles);
     }
 
     pub fn end_frame(&mut self) {
         self.square_with_sweep.end_frame(self.cycles);
-        //self.square_without_sweep.end_frame(end_frame_cycles);
-
         self.cycles = 0;
     }
 
-    fn gather_samples(&mut self) -> StereoOutput {
-        self.square_with_sweep.gather_samples()
+    pub fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32 {
+        self.square_with_sweep.cycles_needed_to_generate_samples(samples_needed)
     }
 
-    pub fn play(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
-        let stereo_output = self.gather_samples();
-        if let Some(audio_player) = audio_player {
-            audio_player.play(stereo_output);
-        }
+    pub fn gather_samples(&mut self) -> StereoOutput {
+        self.square_with_sweep.gather_samples()
     }
 
     pub fn supports_io_register(address: usize) -> bool {

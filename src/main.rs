@@ -34,8 +34,6 @@ struct Cli {
     rom: Option<std::path::PathBuf>,
 }
 
-use apu::AudioPlayer;
-
 fn main() {
     let args = Cli::from_args();
 
@@ -56,17 +54,14 @@ fn main() {
     };
     window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
-    let mut gameboy = DMG01::new(cart);
+    let gameboy = DMG01::new(cart);
+    let _audio_player = apu::cpal_audio_output::CpalAudioLoop::new(gameboy.cpu).ok();
 
-    let mut audio_player = apu::cpal_audio_output::CpalAudioPlayer::new().ok();
-    if let Some(audio_player) = audio_player.as_ref() {
-        gameboy.cpu.bus.apu.initialize_buffers(audio_player.sample_rate(), cpu::CPU_CLOCK_RATE_HZ);
-    }
     while window.is_open() {
-        gameboy.cpu.step_frame(audio_player.as_mut());
 
-        window
-            .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)
-            .unwrap();
+        //window
+        //    .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)
+        //    .unwrap();
+        window.update();
     }
 }

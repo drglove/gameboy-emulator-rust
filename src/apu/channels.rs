@@ -144,11 +144,23 @@ impl Default for StereoOutput {
     }
 }
 
+impl StereoOutput {
+    pub fn interleave(&mut self) -> Vec<f32> {
+        self.left
+            .chunks(1)
+            .zip(self.right.chunks(1))
+            .flat_map(|(a, b)| a.into_iter().chain(b))
+            .copied()
+            .collect()
+    }
+}
+
 pub(super) trait Channel {
     fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
     fn step(&mut self, cycles: u8);
     fn end_frame(&mut self, cycles: u32);
     fn gather_samples(&mut self) -> StereoOutput;
+    fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32;
 }
 
 pub(super) struct SquareChannel {
@@ -268,6 +280,14 @@ impl Channel for SquareChannel {
 
     fn gather_samples(&mut self) -> StereoOutput {
         gather_samples_for_buffer(self.buffer.as_mut())
+    }
+
+    fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32 {
+        if let Some(buffer) = &self.buffer {
+            buffer.clocks_needed(samples_needed)
+        } else {
+            0
+        }
     }
 }
 

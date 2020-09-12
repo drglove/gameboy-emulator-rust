@@ -10,7 +10,6 @@ use super::memory::MemoryBus;
 use interrupts::Interrupt;
 use registers::Registers;
 use std::ops::{BitAnd, BitOr, BitXor};
-use crate::apu::AudioPlayer;
 
 pub struct CPU {
     registers: Registers,
@@ -29,22 +28,14 @@ impl CPU {
         }
     }
 
-    pub fn step_frame(&mut self, audio_player: Option<&mut impl AudioPlayer>) {
-        const TARGET_FRAMERATE_HZ: u32 = 60;
-        const CYCLES_PER_FRAME: u32 = CPU_CLOCK_RATE_HZ / TARGET_FRAMERATE_HZ;
-
-        let mut cycles_executed = 0;
-        while cycles_executed < CYCLES_PER_FRAME {
-            let cycles_this_instruction = self.step_instruction();
-            self.bus.apu.step(cycles_this_instruction);
-            cycles_executed += cycles_this_instruction as u32;
-            self.bus.apu.end_frame();
-        }
-
-        self.bus.apu.play(audio_player)
+    pub fn step_single_instruction(&mut self) -> u8 {
+        let cycles_this_instruction = self.run_next_instruction();
+        self.bus.apu.step(cycles_this_instruction);
+        self.bus.apu.end_frame();
+        cycles_this_instruction
     }
 
-    fn step_instruction(&mut self) -> u8 {
+    fn run_next_instruction(&mut self) -> u8 {
         let instruction = self.next_instruction().unwrap();
         let (next_pc, cycles) = self.execute(instruction);
         self.registers.pc = next_pc;

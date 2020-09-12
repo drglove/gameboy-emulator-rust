@@ -1,25 +1,18 @@
-use super::{AudioPlayer, StereoOutput};
+use super::AudioLoop;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, StreamConfig, Stream};
-use ringbuf::{RingBuffer, Producer};
+use cpal::{BufferSize, Stream};
+use crate::cpu::{CPU, CPU_CLOCK_RATE_HZ};
 
-pub struct CpalAudioPlayer {
-    producer: Producer<Sample>,
-    stream_config: StreamConfig,
+pub struct CpalAudioLoop {
     stream: Stream,
-}
-
-struct Sample {
-    left: f32,
-    right: f32,
 }
 
 pub enum CpalCreationError {
     DeviceFetchFailed,
 }
 
-impl CpalAudioPlayer {
-    pub fn new() -> Result<Self, CpalCreationError> {
+impl CpalAudioLoop {
+    pub fn new(mut cpu: CPU) -> Result<Self, CpalCreationError> {
         let audio_host = cpal::default_host();
         let audio_device = audio_host.default_output_device();
         let audio_supported_configs_range = (&audio_device).as_ref().unwrap().supported_output_configs();
@@ -34,26 +27,21 @@ impl CpalAudioPlayer {
             cpal::SupportedBufferSize::Unknown => BufferSize::Default,
         };
 
-        let buffer = RingBuffer::new(audio_config.sample_rate.0 as usize);
-        let (producer, mut consumer) = buffer.split();
+        cpu.bus.apu.initialize_buffers(audio_config.sample_rate.0, CPU_CLOCK_RATE_HZ);
+
         let stream = audio_device.unwrap().build_output_stream(
             &audio_config,
             move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                for sample_to_set in data.chunks_mut(2) {
-                    let sample = consumer.pop().unwrap_or(Sample {
-                        left: 0f32,
-                        right: 0f32,
-                    });
-                    sample_to_set[0] = cpal::Sample::from::<f32>(&sample.left);
-                    sample_to_set[1] = cpal::Sample::from::<f32>(&sample.right);
-                }
+                let samples_needed = data.len() / 2;
+                self::AudioLoop::run_cycles_for_desired_samples(samples_needed as u32, &mut cpu);
+                let mut samples = cpu.bus.apu.gather_samples();
+                let flattened_samples = samples.interleave();
+                data[..flattened_samples.len()].copy_from_slice(flattened_samples.as_slice());
             },
             |err| eprintln!("Error occurred on the output audio stream: {:?}", err),
         );
 
-        let audio_player = CpalAudioPlayer {
-            producer,
-            stream_config: audio_config,
+        let audio_player = CpalAudioLoop {
             stream: stream.unwrap(),
         };
         audio_player.stream.play().unwrap();
@@ -62,17 +50,4 @@ impl CpalAudioPlayer {
     }
 }
 
-impl AudioPlayer for CpalAudioPlayer {
-    fn play(&mut self, stereo_output: StereoOutput) {
-        for (left, right) in stereo_output.left.iter().zip(stereo_output.right.iter()) {
-            self.producer.push(Sample {
-                left: *left,
-                right: *right,
-            }).ok().unwrap();
-        }
-    }
-
-    fn sample_rate(&self) -> u32 {
-        self.stream_config.sample_rate.0
-    }
-}
+impl AudioLoop for CpalAudioLoop {}
