@@ -57,13 +57,13 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
     let mut gameboy = DMG01::new(cart);
-    let mut cpal_player = apu::cpal_audio_output::CpalAudioPlayer::new().ok();
 
-    if let Some(cpal_player) = cpal_player.as_ref() {
-        gameboy.cpu.bus.apu.initialize_buffers(cpal_player.sample_rate(), cpu::CPU_CLOCK_RATE_HZ);
+    let mut audio_player = apu::cpal_audio_output::CpalAudioPlayer::new().ok();
+    if let Some(audio_player) = audio_player.as_ref() {
+        gameboy.cpu.bus.apu.initialize_buffers(audio_player.sample_rate(), cpu::CPU_CLOCK_RATE_HZ);
     }
     while window.is_open() {
-        gameboy.cpu.step_frame(cpal_player.as_mut());
+        gameboy.cpu.step_frame(audio_player.as_mut());
 
         window
             .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)
