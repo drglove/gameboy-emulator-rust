@@ -24,7 +24,17 @@ impl CpalAudioLoop {
             .with_max_sample_rate();
         let mut audio_config = (&audio_supported_config.config()).clone();
         audio_config.buffer_size = match audio_supported_config.buffer_size() {
-            cpal::SupportedBufferSize::Range { min, .. } => BufferSize::Fixed(*min),
+            cpal::SupportedBufferSize::Range { min, max } => {
+                let ideal_samples = 10 * CPU_CLOCK_RATE_HZ / audio_config.sample_rate.0;
+                let buffer_size = if ideal_samples > *max {
+                    *max
+                } else if ideal_samples < *min {
+                    *min
+                } else {
+                    ideal_samples
+                };
+                BufferSize::Fixed(buffer_size)
+            }
             cpal::SupportedBufferSize::Unknown => BufferSize::Default,
         };
 
