@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(Copy, Clone)]
 enum Shade {
     White,
