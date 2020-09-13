@@ -32,8 +32,12 @@ impl CPU {
     pub fn step_single_instruction(&mut self) -> u8 {
         let cycles_this_instruction = self.run_next_instruction();
         self.bus.apu.step(cycles_this_instruction);
-        self.bus.apu.end_frame();
         cycles_this_instruction
+    }
+
+    pub fn end_frame(&mut self) {
+        self.bus.apu.end_frame();
+        self.bus.ppu.render();
     }
 
     fn run_next_instruction(&mut self) -> u8 {
@@ -41,18 +45,28 @@ impl CPU {
         let (next_pc, cycles) = self.execute(instruction);
         self.registers.pc = next_pc;
 
+        let all_interrupts = [
+            Interrupt::VBlank,
+            Interrupt::LCDStat,
+            Interrupt::Timer,
+            Interrupt::Serial,
+            Interrupt::Joypad,
+        ];
+
         let interrupts_to_flag = self.bus.ppu.step(cycles);
-        for interrupt in interrupts_to_flag {
-            if interrupt.is_interrupt_enabled(&self.bus) {
+        for interrupt in all_interrupts.iter() {
+            if interrupts_to_flag.is_interrupt_set(*interrupt) {
                 interrupt.set_interrupt_flag(&mut self.bus);
             }
         }
 
         if self.interrupt_master_enable {
-            let interrupts_to_process = Interrupt::get_interrupts_to_process(&self.bus);
-            for interrupt in interrupts_to_process {
-                interrupt.clear_interrupt_flag(&mut self.bus);
-                self.interrupt(interrupt);
+            'run_interrupts: for interrupt in all_interrupts.iter() {
+                if interrupt.should_process_interrupt(&self.bus) {
+                    interrupt.clear_interrupt_flag(&mut self.bus);
+                    self.interrupt(*interrupt);
+                    break 'run_interrupts;
+                }
             }
         }
 

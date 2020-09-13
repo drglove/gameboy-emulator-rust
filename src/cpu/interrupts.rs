@@ -14,21 +14,8 @@ impl Interrupt {
     const INTERRUPT_ENABLE_ADDRESS: u16 = 0xFFFF;
     const INTERRUPT_FLAG_ADDRESS: u16 = 0xFF0F;
 
-    pub(super) fn get_interrupts_to_process(bus: &MemoryBus) -> Vec<Self> {
-        let mut interrupts: Vec<Interrupt> = vec![];
-        let all_interrupts = vec![
-            Interrupt::VBlank,
-            Interrupt::LCDStat,
-            Interrupt::Timer,
-            Interrupt::Serial,
-            Interrupt::Joypad,
-        ];
-        for interrupt in all_interrupts {
-            if interrupt.is_interrupt_enabled(bus) && interrupt.is_interrupt_flag_set(bus) {
-                interrupts.push(interrupt);
-            }
-        }
-        interrupts
+    pub(super) fn should_process_interrupt(&self, bus: &MemoryBus) -> bool {
+        self.is_interrupt_enabled(bus) && self.is_interrupt_flag_set(bus)
     }
 
     pub(super) fn is_interrupt_enabled(&self, bus: &MemoryBus) -> bool {
@@ -43,7 +30,7 @@ impl Interrupt {
         (interrupt_flag_byte & mask) == mask
     }
 
-    pub(super) fn set_interrupt_flag(&self, bus: &mut MemoryBus) {
+    pub fn set_interrupt_flag(&self, bus: &mut MemoryBus) {
         self.set_interrupt_flag_to_value(true, bus);
     }
 
@@ -70,5 +57,39 @@ impl Interrupt {
             Interrupt::Serial => 1 << 3,
             Interrupt::Joypad => 1 << 4,
         }) as u8
+    }
+}
+
+pub struct InterruptsToSet {
+    interrupts: [bool; 5],
+}
+
+impl InterruptsToSet {
+    pub fn is_interrupt_set(&self, interrupt: Interrupt) -> bool {
+        match interrupt {
+            Interrupt::VBlank => self.interrupts[0],
+            Interrupt::LCDStat => self.interrupts[1],
+            Interrupt::Timer => self.interrupts[2],
+            Interrupt::Serial => self.interrupts[3],
+            Interrupt::Joypad => self.interrupts[4],
+        }
+    }
+
+    pub fn set_interrupt(&mut self, interrupt: Interrupt) {
+        match interrupt {
+            Interrupt::VBlank => self.interrupts[0] = true,
+            Interrupt::LCDStat => self.interrupts[1] = true,
+            Interrupt::Timer => self.interrupts[2] = true,
+            Interrupt::Serial => self.interrupts[3] = true,
+            Interrupt::Joypad => self.interrupts[4] = true,
+        }
+    }
+}
+
+impl Default for InterruptsToSet {
+    fn default() -> Self {
+        Self {
+            interrupts: [false; 5],
+        }
     }
 }

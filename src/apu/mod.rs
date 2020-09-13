@@ -21,6 +21,7 @@ impl dyn AudioLoop {
             let instruction_cycles = cpu.step_single_instruction();
             cycles_ran += instruction_cycles as u32;
         }
+        cpu.end_frame();
     }
 }
 

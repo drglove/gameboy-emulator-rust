@@ -1,20 +1,21 @@
 mod palette;
 mod tile;
 
+use crate::cpu::interrupts::{Interrupt, InterruptsToSet};
 use crate::memory::{VRAM_BEGIN, VRAM_SIZE};
 use palette::*;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use tile::Tile;
-use crate::cpu::interrupts::Interrupt;
 
 pub struct PPU {
     vram: [u8; VRAM_SIZE],
     tile_set: [Tile; 384],
     mode: PPUMode,
     cycles: u16,
-    line: u8,
+    line: Line,
+    scroll: Scroll,
     palette: Palette,
-    scroll: (u8, u8),
+    lines_to_render: LinesToRender,
     pub framebuffer: Vec<u32>,
 }
 
@@ -29,6 +30,18 @@ const BG_MAP_START: usize = 0x9800;
 pub const LCD_WIDTH: u8 = 160;
 pub const LCD_HEIGHT: u8 = 144;
 
+type Line = u8;
+
+#[derive(Copy, Clone)]
+struct Scroll {
+    horiz: u8,
+    vert: u8,
+}
+
+struct LinesToRender {
+    pub jobs: HashMap<Line, Scroll>,
+}
+
 impl PPU {
     pub fn new() -> Self {
         PPU {
@@ -37,8 +50,11 @@ impl PPU {
             mode: PPUMode::HBlank,
             cycles: 0,
             line: 0,
+            scroll: Scroll { horiz: 0, vert: 0 },
             palette: Palette::default(),
-            scroll: (0, 0),
+            lines_to_render: LinesToRender {
+                jobs: Default::default(),
+            },
             framebuffer: vec![0; LCD_WIDTH as usize * LCD_HEIGHT as usize],
         }
     }
@@ -52,8 +68,8 @@ impl PPU {
 
     pub fn read_io_register(&self, address: usize) -> u8 {
         match address {
-            0xFF42 => self.scroll.1,
-            0xFF43 => self.scroll.0,
+            0xFF42 => self.scroll.vert,
+            0xFF43 => self.scroll.horiz,
             0xFF44 => self.line,
             0xFF47 => u8::from(&self.palette),
             _ => panic!("Trying to read unknown IO register related to PPU!"),
@@ -62,8 +78,8 @@ impl PPU {
 
     pub fn write_io_register(&mut self, value: u8, address: usize) {
         match address {
-            0xFF42 => self.scroll.1 = value,
-            0xFF43 => self.scroll.0 = value,
+            0xFF42 => self.scroll.vert = value,
+            0xFF43 => self.scroll.horiz = value,
             0xFF47 => self.palette = Palette::from(value),
             _ => panic!("Trying to write to unknown IO register in PPU!"),
         }
@@ -104,10 +120,10 @@ impl PPU {
         }
     }
 
-    pub fn step(&mut self, cycles: u8) -> HashSet<Interrupt> {
+    pub fn step(&mut self, cycles: u8) -> InterruptsToSet {
         self.cycles += cycles as u16;
 
-        let mut interrupts = HashSet::new();
+        let mut interrupts: InterruptsToSet = Default::default();
         match self.mode {
             PPUMode::HBlank => {
                 if self.cycles >= 200 {
@@ -116,7 +132,7 @@ impl PPU {
 
                     if self.line >= LCD_HEIGHT {
                         self.mode = PPUMode::VBlank;
-                        interrupts.insert(Interrupt::VBlank);
+                        interrupts.set_interrupt(Interrupt::VBlank);
                     } else {
                         self.mode = PPUMode::OAMAccess;
                     }
@@ -143,36 +159,51 @@ impl PPU {
                 if self.cycles >= 172 {
                     self.cycles = self.cycles % 172;
                     self.mode = PPUMode::HBlank;
-                    self.render_line();
+                    self.queue_current_line_to_render();
                 }
             }
         }
+
         interrupts
     }
 
-    fn render_line(&mut self) {
+    fn queue_current_line_to_render(&mut self) {
+        if self.line < LCD_HEIGHT {
+            self.lines_to_render.jobs.insert(self.line, self.scroll);
+        }
+    }
+
+    pub fn render(&mut self) {
+        let mut current_framebuffer = self.framebuffer.clone();
+        for (line, scroll) in self.lines_to_render.jobs.iter() {
+            let rendered_line = self.render_line(*line, *scroll);
+            let current_rendered_line = &mut current_framebuffer.as_mut_slice()
+                [(*line as usize)..(*line as usize + LCD_WIDTH as usize)];
+            current_rendered_line.clone_from_slice(&rendered_line);
+        }
+        self.framebuffer = current_framebuffer;
+        self.lines_to_render.jobs.clear();
+    }
+
+    fn render_line(&self, line: Line, scroll: Scroll) -> [u32; LCD_WIDTH as usize] {
         const BG_OFFSET: usize = BG_MAP_START - VRAM_BEGIN;
         const PIXEL_DIMENSION_PER_TILE: usize = 8;
         const TILES_PER_ROW: usize = 0x20;
 
-        let pixel_row = self.line.wrapping_add(self.scroll.1);
+        let pixel_row = line.wrapping_add(scroll.vert);
+        let mut rendered_line = [0; LCD_WIDTH as usize];
 
-        for column in 0..=255 as u8 {
-            let pixel_column = column.wrapping_add(self.scroll.0);
+        for column in 0..LCD_WIDTH as u8 {
+            let pixel_column = column.wrapping_add(scroll.horiz);
             let tile_row = (pixel_row as usize) / PIXEL_DIMENSION_PER_TILE;
             let tile_column = (pixel_column as usize) / PIXEL_DIMENSION_PER_TILE;
             let tile_address = BG_OFFSET + tile_row * TILES_PER_ROW + tile_column;
             let tile_byte = self.vram[tile_address];
-            let onscreen = self.line < LCD_HEIGHT && column < LCD_WIDTH;
-            if onscreen {
-                let pixel_index = (self.line as usize) * (LCD_WIDTH as usize) + column as usize;
-                self.framebuffer[pixel_index] = self.get_pixel_colour_from_tile(
-                    tile_byte,
-                    pixel_row % 8,
-                    (pixel_column % 8) as u8,
-                );
-            }
+            rendered_line[column as usize] =
+                self.get_pixel_colour_from_tile(tile_byte, pixel_row % 8, (pixel_column % 8) as u8);
+            rendered_line[column as usize] = 0;
         }
+        rendered_line
     }
 
     fn get_pixel_colour_from_tile(&self, tile: u8, row: u8, col: u8) -> u32 {
