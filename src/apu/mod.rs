@@ -15,7 +15,10 @@ pub trait AudioLoop {}
 
 impl dyn AudioLoop {
     pub fn run_cycles_for_desired_samples(samples_needed: u32, cpu: &mut CPU) {
-        let cycles_to_run = cpu.bus.apu.cycles_needed_to_generate_samples(samples_needed);
+        let cycles_to_run = cpu
+            .bus
+            .apu
+            .cycles_needed_to_generate_samples(samples_needed);
         let mut cycles_ran = 0;
         while cycles_ran < cycles_to_run {
             let instruction_cycles = cpu.step_single_instruction();
@@ -58,7 +61,8 @@ impl APU {
     }
 
     pub fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32 {
-        self.square_with_sweep.cycles_needed_to_generate_samples(samples_needed)
+        self.square_with_sweep
+            .cycles_needed_to_generate_samples(samples_needed)
     }
 
     pub fn gather_samples(&mut self) -> StereoOutput {

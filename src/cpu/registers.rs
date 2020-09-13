@@ -106,4 +106,3 @@ impl Registers {
         self.f = FlagsRegister::from((value & 0x00FF) as u8);
     }
 }
-

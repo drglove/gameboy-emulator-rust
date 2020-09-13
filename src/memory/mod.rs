@@ -1,7 +1,7 @@
 pub mod cartridge;
 
-use crate::ppu::PPU;
 use crate::apu::APU;
+use crate::ppu::PPU;
 use cartridge::Cartridge;
 
 pub struct MemoryBus {
@@ -49,11 +49,13 @@ impl MemoryBus {
         let address = address as usize;
         match address {
             BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => self.boot_rom[address],
-            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_END | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {
-                if self.cart_rom.as_ref().is_some() && address < self.cart_rom.as_ref().unwrap().rom.len() {
+            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_END
+            | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {
+                if self.cart_rom.as_ref().is_some()
+                    && address < self.cart_rom.as_ref().unwrap().rom.len()
+                {
                     self.cart_rom.as_ref().unwrap().rom[address]
-                }
-                else {
+                } else {
                     0
                 }
             }
@@ -71,7 +73,8 @@ impl MemoryBus {
         let address = address as usize;
         match address {
             BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => {}
-            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_START | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {}
+            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_START
+            | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {}
             VRAM_BEGIN..=VRAM_END => self.ppu.write_vram(value, address - VRAM_BEGIN),
             IO_REGISTER_BEGIN..=IO_REGISTER_END => self.write_io_register(value, address),
             _ => self.memory[address] = value,
@@ -95,10 +98,8 @@ impl MemoryBus {
             0xFF50 if !self.finished_boot => self.finished_boot = true,
             _ if self.ppu.supports_io_register(address) => {
                 self.ppu.write_io_register(value, address)
-            },
-            _ if APU::supports_io_register(address) => {
-                self.apu.write_io_register(value, address)
-            },
+            }
+            _ if APU::supports_io_register(address) => self.apu.write_io_register(value, address),
             _ => self.memory[address] = value,
         }
     }

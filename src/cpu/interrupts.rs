@@ -1,5 +1,5 @@
 use crate::memory::MemoryBus;
-use std::ops::{BitOr, BitAnd, Not};
+use std::ops::{BitAnd, BitOr, Not};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Interrupt {

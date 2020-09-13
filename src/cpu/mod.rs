@@ -6,8 +6,8 @@ use self::instructions::{
     AddressContainingRegister, ArithmeticSource, IncrementDecrementTarget, Instruction,
     JumpCondition, JumpTarget, LoadType, RotateDirection,
 };
-use super::memory::MemoryBus;
 use super::memory::cartridge::Cartridge;
+use super::memory::MemoryBus;
 use interrupts::Interrupt;
 use registers::Registers;
 use std::ops::{BitAnd, BitOr, BitXor};

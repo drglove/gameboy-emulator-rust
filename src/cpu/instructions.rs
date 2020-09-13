@@ -1,6 +1,6 @@
-use core::option::Option::{Some, None};
-use crate::cpu::CPU;
 use crate::cpu::registers::Registers;
+use crate::cpu::CPU;
+use core::option::Option::{None, Some};
 
 #[allow(non_camel_case_types)]
 pub(super) enum Instruction {
@@ -556,4 +556,3 @@ pub(super) enum RotateDirection {
     Left,
     Right,
 }
-

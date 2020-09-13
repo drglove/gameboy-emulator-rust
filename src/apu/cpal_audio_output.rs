@@ -1,7 +1,7 @@
 use super::AudioLoop;
+use crate::cpu::{CPU, CPU_CLOCK_RATE_HZ};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize, Stream};
-use crate::cpu::{CPU, CPU_CLOCK_RATE_HZ};
 
 pub struct CpalAudioLoop {
     stream: Stream,
@@ -15,7 +15,8 @@ impl CpalAudioLoop {
     pub fn new(mut cpu: CPU) -> Result<Self, CpalCreationError> {
         let audio_host = cpal::default_host();
         let audio_device = audio_host.default_output_device();
-        let audio_supported_configs_range = (&audio_device).as_ref().unwrap().supported_output_configs();
+        let audio_supported_configs_range =
+            (&audio_device).as_ref().unwrap().supported_output_configs();
         let audio_supported_config = audio_supported_configs_range
             .unwrap()
             .next()
@@ -27,7 +28,9 @@ impl CpalAudioLoop {
             cpal::SupportedBufferSize::Unknown => BufferSize::Default,
         };
 
-        cpu.bus.apu.initialize_buffers(audio_config.sample_rate.0, CPU_CLOCK_RATE_HZ);
+        cpu.bus
+            .apu
+            .initialize_buffers(audio_config.sample_rate.0, CPU_CLOCK_RATE_HZ);
 
         let stream = audio_device.unwrap().build_output_stream(
             &audio_config,
