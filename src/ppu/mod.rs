@@ -185,8 +185,9 @@ impl PPU {
         let mut current_framebuffer = self.framebuffer.clone();
         for (line, scroll) in self.lines_to_render.jobs.iter() {
             let rendered_line = self.render_line(*line, *scroll);
+            let pixel_offset = (*line as usize) * (LCD_WIDTH as usize);
             let current_rendered_line = &mut current_framebuffer.as_mut_slice()
-                [(*line as usize)..(*line as usize + LCD_WIDTH as usize)];
+                [pixel_offset..(pixel_offset + LCD_WIDTH as usize)];
             current_rendered_line.clone_from_slice(&rendered_line);
         }
         self.framebuffer = current_framebuffer;
