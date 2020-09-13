@@ -8,22 +8,14 @@ struct DMG01 {
     cpu: cpu::CPU,
 }
 
+use memory::cartridge::Cartridge;
+
 impl DMG01 {
     fn new(cart: Option<Cartridge>) -> DMG01 {
-        use std::cmp::min;
-
-        let mut memory: [u8; 0x10000] = [0; 0x10000];
-        let size_to_copy = min(0x10000, cart.as_ref().unwrap().rom.len());
-        memory[0..size_to_copy].copy_from_slice(&cart.unwrap().rom.as_slice());
-
         DMG01 {
-            cpu: cpu::CPU::new(memory),
+            cpu: cpu::CPU::new(cart),
         }
     }
-}
-
-struct Cartridge {
-    rom: Vec<u8>,
 }
 
 use structopt::StructOpt;

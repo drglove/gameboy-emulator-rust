@@ -7,6 +7,7 @@ use self::instructions::{
     JumpCondition, JumpTarget, LoadType, RotateDirection,
 };
 use super::memory::MemoryBus;
+use super::memory::cartridge::Cartridge;
 use interrupts::Interrupt;
 use registers::Registers;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -20,10 +21,10 @@ pub struct CPU {
 pub const CPU_CLOCK_RATE_HZ: u32 = 4194304;
 
 impl CPU {
-    pub fn new(memory: [u8; 0x10000]) -> Self {
+    pub fn new(cart: Option<Cartridge>) -> Self {
         CPU {
             registers: Registers::new(),
-            bus: MemoryBus::new(memory),
+            bus: MemoryBus::new(cart),
             interrupt_master_enable: true,
         }
     }

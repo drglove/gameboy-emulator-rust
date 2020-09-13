@@ -1,18 +1,22 @@
+pub mod cartridge;
+
 use crate::ppu::PPU;
 use crate::apu::APU;
+use cartridge::Cartridge;
 
 pub struct MemoryBus {
-    memory: [u8; 0x10000],
+    memory: Vec<u8>,
     boot_rom: [u8; BOOTROM_SIZE],
+    cart_rom: Option<Cartridge>,
     finished_boot: bool,
     pub ppu: PPU,
     pub apu: APU,
 }
 
 impl MemoryBus {
-    pub fn new(memory: [u8; 0x10000]) -> Self {
+    pub fn new(cart: Option<Cartridge>) -> Self {
         MemoryBus {
-            memory,
+            memory: vec![0; 0x10000],
             boot_rom: [
                 0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB, 0x21, 0x26,
                 0xFF, 0x0E, 0x11, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3, 0xE2, 0x32, 0x3E, 0x77,
@@ -34,6 +38,7 @@ impl MemoryBus {
                 0x34, 0x20, 0xF5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xFB, 0x86, 0x20, 0xFE,
                 0x3E, 0x01, 0xE0, 0x50,
             ],
+            cart_rom: cart,
             finished_boot: false,
             ppu: PPU::new(),
             apu: APU::new(),
@@ -44,6 +49,14 @@ impl MemoryBus {
         let address = address as usize;
         match address {
             BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => self.boot_rom[address],
+            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_END | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {
+                if self.cart_rom.as_ref().is_some() && address < self.cart_rom.as_ref().unwrap().rom.len() {
+                    self.cart_rom.as_ref().unwrap().rom[address]
+                }
+                else {
+                    0
+                }
+            }
             VRAM_BEGIN..=VRAM_END => self.ppu.read_vram(address - VRAM_BEGIN),
             IO_REGISTER_BEGIN..=IO_REGISTER_END => self.read_io_register(address),
             _ => self.memory[address],
@@ -57,9 +70,8 @@ impl MemoryBus {
     pub fn write_byte(&mut self, value: u8, address: u16) {
         let address = address as usize;
         match address {
-            BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => {
-                panic!("Cannot write into bootrom territory!")
-            }
+            BOOTROM_BEGIN..=BOOTROM_END if !self.finished_boot => {}
+            CARTRIDGE_ROM_BANK_0_START..=CARTRIDGE_ROM_BANK_0_START | CARTRIDGE_ROM_BANK_REST_START..=CARTRIDGE_ROM_BANK_REST_END => {}
             VRAM_BEGIN..=VRAM_END => self.ppu.write_vram(value, address - VRAM_BEGIN),
             IO_REGISTER_BEGIN..=IO_REGISTER_END => self.write_io_register(value, address),
             _ => self.memory[address] = value,
@@ -95,6 +107,10 @@ impl MemoryBus {
 const BOOTROM_BEGIN: usize = 0x0000;
 const BOOTROM_END: usize = 0x00FF;
 const BOOTROM_SIZE: usize = BOOTROM_END - BOOTROM_BEGIN + 1;
+const CARTRIDGE_ROM_BANK_0_START: usize = 0x0000;
+const CARTRIDGE_ROM_BANK_0_END: usize = 0x3FFF;
+const CARTRIDGE_ROM_BANK_REST_START: usize = 0x4000;
+const CARTRIDGE_ROM_BANK_REST_END: usize = 0x7FFF;
 pub const VRAM_BEGIN: usize = 0x8000;
 pub const VRAM_END: usize = 0x9FFF;
 pub const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
