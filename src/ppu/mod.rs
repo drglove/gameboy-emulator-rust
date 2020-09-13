@@ -5,6 +5,7 @@ use crate::cpu::interrupts::{Interrupt, InterruptsToSet};
 use crate::memory::{VRAM_BEGIN, VRAM_SIZE};
 use palette::*;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tile::Tile;
 
 pub struct PPU {
@@ -16,7 +17,8 @@ pub struct PPU {
     scroll: Scroll,
     palette: Palette,
     lines_to_render: LinesToRender,
-    pub framebuffer: Vec<u32>,
+    framebuffer: Framebuffer,
+    pub displayable_framebuffer: Arc<Mutex<Framebuffer>>,
 }
 
 enum PPUMode {
@@ -31,6 +33,7 @@ pub const LCD_WIDTH: u8 = 160;
 pub const LCD_HEIGHT: u8 = 144;
 
 type Line = u8;
+type Framebuffer = Vec<u32>;
 
 #[derive(Copy, Clone)]
 struct Scroll {
@@ -56,6 +59,11 @@ impl PPU {
                 jobs: Default::default(),
             },
             framebuffer: vec![0; LCD_WIDTH as usize * LCD_HEIGHT as usize],
+            displayable_framebuffer: Arc::new(Mutex::new(vec![
+                0;
+                LCD_WIDTH as usize
+                    * LCD_HEIGHT as usize
+            ])),
         }
     }
 
@@ -183,6 +191,13 @@ impl PPU {
         }
         self.framebuffer = current_framebuffer;
         self.lines_to_render.jobs.clear();
+
+        // Only try to lock here. If we fail, we will drop the frame as opposed to messing up our audio stream.
+        let displayable_framebuffer = self.displayable_framebuffer.try_lock();
+        if displayable_framebuffer.is_ok() {
+            let mut displayable_framebuffer = displayable_framebuffer.unwrap();
+            *displayable_framebuffer = self.framebuffer.clone();
+        }
     }
 
     fn render_line(&self, line: Line, scroll: Scroll) -> [u32; LCD_WIDTH as usize] {

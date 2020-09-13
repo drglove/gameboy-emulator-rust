@@ -18,6 +18,7 @@ impl DMG01 {
     }
 }
 
+use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -52,12 +53,17 @@ fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_millis(16)));
 
     let gameboy = DMG01::new(cart);
+    let displayable_framebuffer = Arc::clone(&gameboy.cpu.bus.ppu.displayable_framebuffer);
     let _audio_player = apu::cpal_audio_output::CpalAudioLoop::new(gameboy.cpu).ok();
 
     while window.is_open() {
-        //window
-        //    .update_with_buffer(gameboy.cpu.bus.ppu.framebuffer.as_slice(), LCD_WIDTH as usize, LCD_HEIGHT as usize)
-        //    .unwrap();
-        window.update();
+        let framebuffer = displayable_framebuffer.lock().unwrap().clone();
+        window
+            .update_with_buffer(
+                framebuffer.as_slice(),
+                LCD_WIDTH as usize,
+                LCD_HEIGHT as usize,
+            )
+            .unwrap();
     }
 }
