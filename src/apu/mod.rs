@@ -8,6 +8,9 @@ pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
     frame_sequencer: FrameSequencer,
+    length_sequencer: FrameSequencer,
+    volume_sequencer: FrameSequencer,
+    sweep_sequencer: FrameSequencer,
     cycles: u32,
 }
 
@@ -37,10 +40,22 @@ impl APU {
         APU {
             square_with_sweep: SquareChannel::new_with_sweep(),
             square_without_sweep: SquareChannel::new_without_sweep(),
-            frame_sequencer: FrameSequencer {
-                timer: 0, // We want the first tick to fire
-                initial: MASTER_FRAME_SEQUENCER_CLOCKS,
-            },
+            // Step   Length Ctr  Vol Env     Sweep
+            // ---------------------------------------
+            // 0      Clock       -           -
+            // 1      -           -           -
+            // 2      Clock       -           Clock
+            // 3      -           -           -
+            // 4      Clock       -           -
+            // 5      -           -           -
+            // 6      Clock       -           Clock
+            // 7      -           Clock       -
+            // ---------------------------------------
+            // Rate   256 Hz      64 Hz       128 Hz
+            frame_sequencer: FrameSequencer::new(0, MASTER_FRAME_SEQUENCER_CLOCKS),
+            length_sequencer: FrameSequencer::new(0, 2),
+            volume_sequencer: FrameSequencer::new(7, 8),
+            sweep_sequencer: FrameSequencer::new(2, 4),
             cycles: 0,
         }
     }
@@ -52,6 +67,17 @@ impl APU {
 
     pub fn step(&mut self, cycles: u8) {
         self.cycles += cycles as u32;
+        if self.frame_sequencer.step() {
+            if self.length_sequencer.step() {
+                self.step_lengths();
+            }
+            if self.volume_sequencer.step() {
+                self.step_volumes();
+            }
+            if self.sweep_sequencer.step() {
+                self.step_sweeps();
+            }
+        }
         self.square_with_sweep.step(cycles);
     }
 
@@ -97,18 +123,31 @@ impl APU {
             _ => panic!("Unknown command when writing to APU IO register!"),
         }
     }
+
+    fn step_lengths(&mut self) {}
+
+    fn step_volumes(&mut self) {}
+
+    fn step_sweeps(&mut self) {}
 }
 
 struct FrameSequencer {
     timer: u32,
-    initial: u32,
+    frequency: u32,
 }
 
 impl FrameSequencer {
+    pub fn new(initial_delay: u32, frequency: u32) -> Self {
+        FrameSequencer {
+            timer: initial_delay,
+            frequency,
+        }
+    }
+
     fn step(&mut self) -> bool {
         let (decremented_timer, underflow) = self.timer.overflowing_sub(1);
         self.timer = if underflow {
-            self.initial
+            self.frequency
         } else {
             decremented_timer
         };
