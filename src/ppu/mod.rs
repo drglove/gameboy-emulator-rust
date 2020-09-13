@@ -217,7 +217,6 @@ impl PPU {
             let tile_byte = self.vram[tile_address];
             rendered_line[column as usize] =
                 self.get_pixel_colour_from_tile(tile_byte, pixel_row % 8, (pixel_column % 8) as u8);
-            rendered_line[column as usize] = 0;
         }
         rendered_line
     }
