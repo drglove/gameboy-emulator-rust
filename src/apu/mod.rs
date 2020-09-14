@@ -1,5 +1,5 @@
 use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
-use crate::cpu::CPU;
+use crate::cpu::{CPU, CPU_CLOCK_RATE_HZ};
 
 mod channels;
 pub mod cpal_audio_output;
@@ -7,10 +7,7 @@ pub mod cpal_audio_output;
 pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
-    frame_sequencer: FrameSequencer,
-    length_sequencer: FrameSequencer,
-    volume_sequencer: FrameSequencer,
-    sweep_sequencer: FrameSequencer,
+    sequencers: FrameSequencers,
     cycles: u32,
 }
 
@@ -31,31 +28,12 @@ impl dyn AudioLoop {
     }
 }
 
-const MASTER_FRAME_SEQUENCER_CLOCK_RATE_HZ: u32 = 512;
-const MASTER_FRAME_SEQUENCER_CLOCKS: u32 =
-    crate::cpu::CPU_CLOCK_RATE_HZ / MASTER_FRAME_SEQUENCER_CLOCK_RATE_HZ;
-
 impl APU {
     pub fn new() -> Self {
         APU {
             square_with_sweep: SquareChannel::new_with_sweep(),
             square_without_sweep: SquareChannel::new_without_sweep(),
-            // Step   Length Ctr  Vol Env     Sweep
-            // ---------------------------------------
-            // 0      Clock       -           -
-            // 1      -           -           -
-            // 2      Clock       -           Clock
-            // 3      -           -           -
-            // 4      Clock       -           -
-            // 5      -           -           -
-            // 6      Clock       -           Clock
-            // 7      -           Clock       -
-            // ---------------------------------------
-            // Rate   256 Hz      64 Hz       128 Hz
-            frame_sequencer: FrameSequencer::new(0, MASTER_FRAME_SEQUENCER_CLOCKS),
-            length_sequencer: FrameSequencer::new(0, 2),
-            volume_sequencer: FrameSequencer::new(7, 8),
-            sweep_sequencer: FrameSequencer::new(2, 4),
+            sequencers: FrameSequencers::new(),
             cycles: 0,
         }
     }
@@ -67,18 +45,10 @@ impl APU {
 
     pub fn step(&mut self, cycles: u8) {
         self.cycles += cycles as u32;
-        if self.frame_sequencer.step() {
-            if self.length_sequencer.step() {
-                self.step_lengths();
-            }
-            if self.volume_sequencer.step() {
-                self.step_volumes();
-            }
-            if self.sweep_sequencer.step() {
-                self.step_sweeps();
-            }
+        self.square_with_sweep.step(cycles, self.sequencers.clone());
+        for sequence_cycle in 0..cycles {
+            self.sequencers.step();
         }
-        self.square_with_sweep.step(cycles);
     }
 
     pub fn end_frame(&mut self) {
@@ -123,34 +93,112 @@ impl APU {
             _ => panic!("Unknown command when writing to APU IO register!"),
         }
     }
-
-    fn step_lengths(&mut self) {}
-
-    fn step_volumes(&mut self) {}
-
-    fn step_sweeps(&mut self) {}
 }
 
+#[derive(Copy, Clone)]
 struct FrameSequencer {
     timer: u32,
-    frequency: u32,
+    period: u32,
 }
 
 impl FrameSequencer {
-    pub fn new(initial_delay: u32, frequency: u32) -> Self {
+    pub fn new(initial_delay: u32, period: u32) -> Self {
         FrameSequencer {
             timer: initial_delay,
-            frequency,
+            period,
         }
     }
 
     fn step(&mut self) -> bool {
         let (decremented_timer, underflow) = self.timer.overflowing_sub(1);
         self.timer = if underflow {
-            self.frequency
+            self.period
         } else {
             decremented_timer
         };
         underflow
+    }
+}
+
+#[derive(Copy, Clone)]
+struct FrameSequencers {
+    frame_sequencer: FrameSequencer,
+    length_sequencer: FrameSequencer,
+    volume_sequencer: FrameSequencer,
+    sweep_sequencer: FrameSequencer,
+}
+
+struct SequencesToFire {
+    fire: [bool; 3],
+}
+
+impl SequencesToFire {
+    pub fn should_length_sequence_fire(&self) -> bool {
+        self.fire[0]
+    }
+
+    pub fn should_volume_sequence_fire(&self) -> bool {
+        self.fire[1]
+    }
+
+    pub fn should_sweep_sequence_fire(&self) -> bool {
+        self.fire[2]
+    }
+
+    pub fn fire_length_sequence(&mut self) {
+        self.fire[0] = true;
+    }
+
+    pub fn fire_volume_sequence(&mut self) {
+        self.fire[1] = true;
+    }
+
+    pub fn fire_sweep_sequence(&mut self) {
+        self.fire[2] = true;
+    }
+}
+
+impl Default for SequencesToFire {
+    fn default() -> Self {
+        Self { fire: [false; 3] }
+    }
+}
+
+impl FrameSequencers {
+    pub fn new() -> Self {
+        // Step   Length Ctr  Vol Env     Sweep
+        // ---------------------------------------
+        // 0      Clock       -           -
+        // 1      -           -           -
+        // 2      Clock       -           Clock
+        // 3      -           -           -
+        // 4      Clock       -           -
+        // 5      -           -           -
+        // 6      Clock       -           Clock
+        // 7      -           Clock       -
+        // ---------------------------------------
+        // Rate   256 Hz      64 Hz       128 Hz
+        Self {
+            frame_sequencer: FrameSequencer::new(0, CPU_CLOCK_RATE_HZ / 512),
+            length_sequencer: FrameSequencer::new(0, 2),
+            volume_sequencer: FrameSequencer::new(7, 8),
+            sweep_sequencer: FrameSequencer::new(2, 4),
+        }
+    }
+
+    pub fn step(&mut self) -> SequencesToFire {
+        let mut sequences_to_fire = SequencesToFire::default();
+        if self.frame_sequencer.step() {
+            if self.length_sequencer.step() {
+                sequences_to_fire.fire_length_sequence();
+            }
+            if self.volume_sequencer.step() {
+                sequences_to_fire.fire_volume_sequence();
+            }
+            if self.volume_sequencer.step() {
+                sequences_to_fire.fire_sweep_sequence();
+            }
+        }
+        sequences_to_fire
     }
 }

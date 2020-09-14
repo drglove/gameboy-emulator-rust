@@ -1,4 +1,5 @@
 use blip_buf::BlipBuf;
+use super::{FrameSequencer, FrameSequencers};
 
 struct Sweep {
     period: u8,
@@ -87,17 +88,35 @@ impl std::convert::From<u8> for Duty {
     }
 }
 
+type Volume = u8;
+const VOLUME_MIN: Volume = 0;
+const VOLUME_MAX: Volume = 15;
+
 struct VolumeEnvelope {
-    initial_volume: u8,
+    initial_volume: Volume,
+    current_volume: Volume,
     increase: bool,
-    period: u8,
+    sequence: FrameSequencer,
+}
+
+impl VolumeEnvelope {
+    pub fn step(&mut self) {
+        if self.current_volume > VOLUME_MIN && self.sequence.step() {
+            if self.increase && self.current_volume < VOLUME_MAX {
+                self.current_volume += 1;
+            }
+            else if !self.increase && self.current_volume > VOLUME_MIN {
+                self.current_volume -= 1;
+            }
+        }
+    }
 }
 
 impl std::convert::From<&VolumeEnvelope> for u8 {
     fn from(volume_envelope: &VolumeEnvelope) -> Self {
         let initial_volume = (volume_envelope.initial_volume & 0b1111) << 4;
         let envelope_direction = (volume_envelope.increase as u8) << 3;
-        let period = volume_envelope.period & 0b111;
+        let period = (volume_envelope.sequence.period & 0b111) as u8;
         initial_volume | envelope_direction | period
     }
 }
@@ -109,8 +128,9 @@ impl std::convert::From<u8> for VolumeEnvelope {
         let period = value & 0b111;
         VolumeEnvelope {
             initial_volume,
+            current_volume: initial_volume,
             increase: envelope_direction,
-            period,
+            sequence: FrameSequencer::new(0, period as u32),
         }
     }
 }
@@ -157,7 +177,10 @@ impl StereoOutput {
 
 pub(super) trait Channel {
     fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
-    fn step(&mut self, cycles: u8);
+    fn step(&mut self, cycles: u8, sequencers: FrameSequencers);
+    fn step_lengths(&mut self);
+    fn step_volumes(&mut self);
+    fn step_sweeps(&mut self);
     fn end_frame(&mut self, cycles: u32);
     fn gather_samples(&mut self) -> StereoOutput;
     fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32;
@@ -190,8 +213,8 @@ fn gather_samples_for_buffer(buffer: Option<&mut BlipBuf>) -> StereoOutput {
     let mut left_samples = vec![0f32; samples_available as usize];
     let mut right_samples = vec![0f32; samples_available as usize];
     for (idx, sample) in samples.iter().enumerate() {
-        left_samples[idx] = *sample as f32;
-        right_samples[idx] = *sample as f32;
+        left_samples[idx] = (*sample as f32) / VOLUME_MAX as f32;
+        right_samples[idx] = (*sample as f32) / VOLUME_MAX as f32;
     }
 
     StereoOutput {
@@ -220,8 +243,9 @@ impl SquareChannel {
             },
             volume_envelope: VolumeEnvelope {
                 initial_volume: 0,
+                current_volume: 0,
                 increase: false,
-                period: 0,
+                sequence: FrameSequencer::new(0, 0),
             },
             frequency: Frequency { frequency: 0 },
             trigger: Trigger::Stopped,
@@ -241,13 +265,13 @@ impl Channel for SquareChannel {
         self.buffer = Some(new_buffer);
     }
 
-    fn step(&mut self, cycles: u8) {
+    fn step(&mut self, cycles: u8, sequencers: FrameSequencers) {
         let end_cycle = self.current_sampling_cycle + cycles as u32;
         while self.next_sample_cycle < end_cycle {
             let sample = match self.trigger {
                 Trigger::Stopped => 0,
                 _ => {
-                    let duty_sample = self.duty.sequence();
+                    let duty_sample = self.volume_envelope.current_volume as i32 * self.duty.sequence();
                     self.duty.step();
                     duty_sample
                 }
@@ -268,6 +292,16 @@ impl Channel for SquareChannel {
             self.next_sample_cycle += period as u32;
         }
         self.current_sampling_cycle = end_cycle;
+    }
+
+    fn step_lengths(&mut self) {
+    }
+
+    fn step_volumes(&mut self) {
+        self.volume_envelope.step();
+    }
+
+    fn step_sweeps(&mut self) {
     }
 
     fn end_frame(&mut self, cycles: u32) {
