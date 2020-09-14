@@ -1,5 +1,5 @@
 use blip_buf::BlipBuf;
-use super::{FrameSequencer, FrameSequencers};
+use super::{FrameSequencer, SequencesToFire};
 
 struct Sweep {
     period: u8,
@@ -135,6 +135,7 @@ impl std::convert::From<u8> for VolumeEnvelope {
     }
 }
 
+#[derive(Eq, PartialEq)]
 enum Trigger {
     Stopped,
     Playing,
@@ -177,10 +178,8 @@ impl StereoOutput {
 
 pub(super) trait Channel {
     fn initialize_buffer(&mut self, sample_rate: u32, clock_rate: u32);
-    fn step(&mut self, cycles: u8, sequencers: FrameSequencers);
-    fn step_lengths(&mut self);
-    fn step_volumes(&mut self);
-    fn step_sweeps(&mut self);
+    fn step(&mut self, cycles: u8);
+    fn fire_sequences(&mut self, sequencers_to_fire: &SequencesToFire);
     fn end_frame(&mut self, cycles: u32);
     fn gather_samples(&mut self) -> StereoOutput;
     fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32;
@@ -265,7 +264,7 @@ impl Channel for SquareChannel {
         self.buffer = Some(new_buffer);
     }
 
-    fn step(&mut self, cycles: u8, sequencers: FrameSequencers) {
+    fn step(&mut self, cycles: u8) {
         let end_cycle = self.current_sampling_cycle + cycles as u32;
         while self.next_sample_cycle < end_cycle {
             let sample = match self.trigger {
@@ -294,14 +293,10 @@ impl Channel for SquareChannel {
         self.current_sampling_cycle = end_cycle;
     }
 
-    fn step_lengths(&mut self) {
-    }
-
-    fn step_volumes(&mut self) {
-        self.volume_envelope.step();
-    }
-
-    fn step_sweeps(&mut self) {
+    fn fire_sequences(&mut self, sequencers_to_fire: &SequencesToFire) {
+        if sequencers_to_fire.should_volume_sequence_fire() && self.trigger != Trigger::Stopped {
+            self.volume_envelope.step();
+        }
     }
 
     fn end_frame(&mut self, cycles: u32) {

@@ -45,10 +45,9 @@ impl APU {
 
     pub fn step(&mut self, cycles: u8) {
         self.cycles += cycles as u32;
-        self.square_with_sweep.step(cycles, self.sequencers.clone());
-        for sequence_cycle in 0..cycles {
-            self.sequencers.step();
-        }
+        let sequencers_to_fire = self.sequencers.step(cycles);
+        self.square_with_sweep.fire_sequences(&sequencers_to_fire);
+        self.square_with_sweep.step(cycles);
     }
 
     pub fn end_frame(&mut self) {
@@ -186,17 +185,19 @@ impl FrameSequencers {
         }
     }
 
-    pub fn step(&mut self) -> SequencesToFire {
+    pub fn step(&mut self, cycles: u8) -> SequencesToFire {
         let mut sequences_to_fire = SequencesToFire::default();
-        if self.frame_sequencer.step() {
-            if self.length_sequencer.step() {
-                sequences_to_fire.fire_length_sequence();
-            }
-            if self.volume_sequencer.step() {
-                sequences_to_fire.fire_volume_sequence();
-            }
-            if self.volume_sequencer.step() {
-                sequences_to_fire.fire_sweep_sequence();
+        for _ in 0..cycles {
+            if self.frame_sequencer.step() {
+                if self.length_sequencer.step() {
+                    sequences_to_fire.fire_length_sequence();
+                }
+                if self.volume_sequencer.step() {
+                    sequences_to_fire.fire_volume_sequence();
+                }
+                if self.volume_sequencer.step() {
+                    sequences_to_fire.fire_sweep_sequence();
+                }
             }
         }
         sequences_to_fire
