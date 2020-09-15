@@ -20,6 +20,7 @@ pub(super) enum Instruction {
     RET(JumpCondition),
     PUSH(WordRegister),
     POP(WordRegister),
+    RST(RestartTarget),
     INC(IncrementDecrementTarget),
     DEC(IncrementDecrementTarget),
     RL(ArithmeticSource),
@@ -77,6 +78,8 @@ pub(super) enum JumpTarget {
     A16,
     HL_INDIRECT,
 }
+
+pub type RestartTarget = u8;
 
 pub(super) enum IncrementDecrementTarget {
     Byte(ArithmeticSource),
@@ -406,6 +409,14 @@ impl Instruction {
                 0xC9 => Some(Instruction::RET(JumpCondition::Always)),
                 0xD0 => Some(Instruction::RET(JumpCondition::NoCarry)),
                 0xD8 => Some(Instruction::RET(JumpCondition::Carry)),
+                0xC7 => Some(Instruction::RST(0x00)),
+                0xCF => Some(Instruction::RST(0x08)),
+                0xD7 => Some(Instruction::RST(0x10)),
+                0xDF => Some(Instruction::RST(0x18)),
+                0xE7 => Some(Instruction::RST(0x20)),
+                0xEF => Some(Instruction::RST(0x28)),
+                0xF7 => Some(Instruction::RST(0x30)),
+                0xFF => Some(Instruction::RST(0x38)),
                 0xC5 => Some(Instruction::PUSH(WordRegister::BC)),
                 0xD5 => Some(Instruction::PUSH(WordRegister::DE)),
                 0xE5 => Some(Instruction::PUSH(WordRegister::HL)),

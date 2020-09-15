@@ -4,7 +4,7 @@ mod registers;
 
 use self::instructions::{
     AddressContainingRegister, ArithmeticSource, IncrementDecrementTarget, Instruction,
-    JumpCondition, JumpTarget, LoadType, RotateDirection,
+    JumpCondition, JumpTarget, LoadType, RestartTarget, RotateDirection,
 };
 use super::memory::cartridge::Cartridge;
 use super::memory::MemoryBus;
@@ -445,6 +445,10 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
+            Instruction::RST(address) => {
+                let next_pc = self.restart(address);
+                (next_pc, 16)
+            }
         }
     }
 
@@ -597,6 +601,12 @@ impl CPU {
         } else {
             self.registers.pc.wrapping_add(1)
         }
+    }
+
+    fn restart(&mut self, restart_target: RestartTarget) -> u16 {
+        let address_to_return_to = self.registers.pc.wrapping_add(1);
+        self.push(address_to_return_to);
+        restart_target as u16
     }
 
     fn rotate_through_carry(
