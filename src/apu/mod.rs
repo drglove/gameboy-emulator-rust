@@ -41,27 +41,55 @@ impl APU {
     pub fn initialize_buffers(&mut self, sample_rate: u32, clock_rate: u32) {
         self.square_with_sweep
             .initialize_buffer(sample_rate, clock_rate);
+        self.square_without_sweep
+            .initialize_buffer(sample_rate, clock_rate);
     }
 
     pub fn step(&mut self, cycles: u8) {
         self.cycles += cycles as u32;
+
         let sequencers_to_fire = self.sequencers.step(cycles);
         self.square_with_sweep.fire_sequences(&sequencers_to_fire);
+        self.square_without_sweep
+            .fire_sequences(&sequencers_to_fire);
+
         self.square_with_sweep.step(cycles);
+        self.square_without_sweep.step(cycles);
     }
 
     pub fn end_frame(&mut self) {
         self.square_with_sweep.end_frame(self.cycles);
+        self.square_without_sweep.end_frame(self.cycles);
         self.cycles = 0;
     }
 
     pub fn cycles_needed_to_generate_samples(&self, samples_needed: u32) -> u32 {
-        self.square_with_sweep
-            .cycles_needed_to_generate_samples(samples_needed)
+        let samples = self
+            .square_with_sweep
+            .cycles_needed_to_generate_samples(samples_needed);
+        debug_assert_eq!(
+            samples,
+            self.square_without_sweep
+                .cycles_needed_to_generate_samples(samples_needed)
+        );
+        samples
     }
 
     pub fn gather_samples(&mut self) -> StereoOutput {
-        self.square_with_sweep.gather_samples()
+        let channel1 = self.square_with_sweep.gather_samples();
+        let channel2 = self.square_without_sweep.gather_samples();
+        Self::mix_channels(channel1, channel2)
+    }
+
+    fn mix_channels(channel1: StereoOutput, channel2: StereoOutput) -> StereoOutput {
+        let num_samples = channel1.length();
+        debug_assert_eq!(channel2.length(), num_samples);
+        let mut output = channel1;
+        for idx in 0..output.length() {
+            output.left[idx] += channel2.left[idx];
+            output.right[idx] += channel2.right[idx];
+        }
+        output
     }
 
     pub fn supports_io_register(address: usize) -> bool {
@@ -74,10 +102,14 @@ impl APU {
     pub fn read_io_register(&self, address: usize) -> u8 {
         match address {
             0xFF10 => NoiseRegister::read_nr10(&self.square_with_sweep),
-            0xFF11 => NoiseRegister::read_nr11(&self.square_with_sweep),
-            0xFF12 => NoiseRegister::read_nr12(&self.square_with_sweep),
-            0xFF13 => NoiseRegister::read_nr13(&self.square_with_sweep),
-            0xFF14 => NoiseRegister::read_nr14(&self.square_with_sweep),
+            0xFF11 => NoiseRegister::read_nrx1(&self.square_with_sweep),
+            0xFF12 => NoiseRegister::read_nrx2(&self.square_with_sweep),
+            0xFF13 => NoiseRegister::read_nrx3(&self.square_with_sweep),
+            0xFF14 => NoiseRegister::read_nrx4(&self.square_with_sweep),
+            0xFF16 => NoiseRegister::read_nrx1(&self.square_without_sweep),
+            0xFF17 => NoiseRegister::read_nrx2(&self.square_without_sweep),
+            0xFF18 => NoiseRegister::read_nrx3(&self.square_without_sweep),
+            0xFF19 => NoiseRegister::read_nrx4(&self.square_without_sweep),
             _ => panic!("Unknown command when reading from APU IO register!"),
         }
     }
@@ -85,10 +117,14 @@ impl APU {
     pub fn write_io_register(&mut self, value: u8, address: usize) {
         match address {
             0xFF10 => NoiseRegister::write_nr10(value, &mut self.square_with_sweep),
-            0xFF11 => NoiseRegister::write_nr11(value, &mut self.square_with_sweep),
-            0xFF12 => NoiseRegister::write_nr12(value, &mut self.square_with_sweep),
-            0xFF13 => NoiseRegister::write_nr13(value, &mut self.square_with_sweep),
-            0xFF14 => NoiseRegister::write_nr14(value, &mut self.square_with_sweep),
+            0xFF11 => NoiseRegister::write_nrx1(value, &mut self.square_with_sweep),
+            0xFF12 => NoiseRegister::write_nrx2(value, &mut self.square_with_sweep),
+            0xFF13 => NoiseRegister::write_nrx3(value, &mut self.square_with_sweep),
+            0xFF14 => NoiseRegister::write_nrx4(value, &mut self.square_with_sweep),
+            0xFF16 => NoiseRegister::write_nrx1(value, &mut self.square_without_sweep),
+            0xFF17 => NoiseRegister::write_nrx2(value, &mut self.square_without_sweep),
+            0xFF18 => NoiseRegister::write_nrx3(value, &mut self.square_without_sweep),
+            0xFF19 => NoiseRegister::write_nrx4(value, &mut self.square_without_sweep),
             _ => panic!("Unknown command when writing to APU IO register!"),
         }
     }

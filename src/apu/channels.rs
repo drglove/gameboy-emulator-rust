@@ -174,6 +174,11 @@ impl StereoOutput {
             .copied()
             .collect()
     }
+
+    pub fn length(&self) -> usize {
+        debug_assert_eq!(self.left.len(), self.right.len());
+        self.left.len()
+    }
 }
 
 pub(super) trait Channel {
@@ -331,34 +336,34 @@ impl NoiseRegister {
         channel.sweep = Some(Sweep::from(value))
     }
 
-    pub fn read_nr11(channel: &SquareChannel) -> u8 {
+    pub fn read_nrx1(channel: &SquareChannel) -> u8 {
         u8::from(&channel.duty)
     }
 
-    pub fn write_nr11(value: u8, channel: &mut SquareChannel) {
+    pub fn write_nrx1(value: u8, channel: &mut SquareChannel) {
         channel.duty = Duty::from(value)
     }
 
-    pub fn read_nr12(channel: &SquareChannel) -> u8 {
+    pub fn read_nrx2(channel: &SquareChannel) -> u8 {
         u8::from(&channel.volume_envelope)
     }
 
-    pub fn write_nr12(value: u8, channel: &mut SquareChannel) {
+    pub fn write_nrx2(value: u8, channel: &mut SquareChannel) {
         channel.volume_envelope = VolumeEnvelope::from(value)
     }
 
-    pub fn read_nr13(_channel: &SquareChannel) -> u8 {
+    pub fn read_nrx3(_channel: &SquareChannel) -> u8 {
         // Frequencies are unreadable
         0
     }
 
-    pub fn write_nr13(value: u8, channel: &mut SquareChannel) {
+    pub fn write_nrx3(value: u8, channel: &mut SquareChannel) {
         let msb = channel.frequency.frequency & 0xFF00;
         let lsb = value as u16;
         channel.frequency.frequency = msb | lsb;
     }
 
-    pub fn read_nr14(channel: &SquareChannel) -> u8 {
+    pub fn read_nrx4(channel: &SquareChannel) -> u8 {
         // Only the play-mode is readable
         let play_mode: u8 = match channel.play_mode {
             PlayMode::Counter => 1,
@@ -367,7 +372,7 @@ impl NoiseRegister {
         play_mode
     }
 
-    pub fn write_nr14(value: u8, channel: &mut SquareChannel) {
+    pub fn write_nrx4(value: u8, channel: &mut SquareChannel) {
         if (value & 0b10000000) != 0 {
             channel.trigger = Trigger::Restart;
         }
