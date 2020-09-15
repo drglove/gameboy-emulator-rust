@@ -435,6 +435,16 @@ impl CPU {
                 self.interrupt_master_enable = true;
                 (self.ret(true), 16)
             }
+            Instruction::SWAP(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let new_value = self.swap_nibbles(value);
+                source.set_byte(new_value, self);
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
         }
     }
 
@@ -613,6 +623,17 @@ impl CPU {
         self.registers.f.zero = (mask & value) == 0;
         self.registers.f.subtract = false;
         self.registers.f.half_carry = true;
+    }
+
+    fn swap_nibbles(&mut self, value: u8) -> u8 {
+        let new_lower = (value & 0xF0) >> 4;
+        let new_upper = (value & 0x0F) << 4;
+        let swapped = new_lower | new_upper;
+        self.registers.f.zero = swapped == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.half_carry = false;
+        self.registers.f.carry = false;
+        swapped
     }
 
     fn push(&mut self, value: u16) {
