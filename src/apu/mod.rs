@@ -144,14 +144,14 @@ impl FrameSequencer {
         }
     }
 
-    fn step(&mut self) -> bool {
-        let (decremented_timer, underflow) = self.timer.overflowing_sub(1);
-        self.timer = if underflow {
-            self.period
-        } else {
-            decremented_timer
-        };
+    fn step_multiple(&mut self, cycles: u8) -> bool {
+        let underflow = self.timer < cycles as u32;
+        self.timer = ((self.timer as i32) - (cycles as i32)).rem_euclid(self.period as i32) as u32;
         underflow
+    }
+
+    fn step(&mut self) -> bool {
+        self.step_multiple(1)
     }
 }
 
@@ -223,17 +223,15 @@ impl FrameSequencers {
 
     pub fn step(&mut self, cycles: u8) -> SequencesToFire {
         let mut sequences_to_fire = SequencesToFire::default();
-        for _ in 0..cycles {
-            if self.frame_sequencer.step() {
-                if self.length_sequencer.step() {
-                    sequences_to_fire.fire_length_sequence();
-                }
-                if self.volume_sequencer.step() {
-                    sequences_to_fire.fire_volume_sequence();
-                }
-                if self.volume_sequencer.step() {
-                    sequences_to_fire.fire_sweep_sequence();
-                }
+        if self.frame_sequencer.step_multiple(cycles) {
+            if self.length_sequencer.step() {
+                sequences_to_fire.fire_length_sequence();
+            }
+            if self.volume_sequencer.step() {
+                sequences_to_fire.fire_volume_sequence();
+            }
+            if self.sweep_sequencer.step() {
+                sequences_to_fire.fire_sweep_sequence();
             }
         }
         sequences_to_fire
