@@ -10,7 +10,7 @@ use super::memory::cartridge::Cartridge;
 use super::memory::MemoryBus;
 use interrupts::Interrupt;
 use registers::Registers;
-use std::ops::{BitAnd, BitOr, BitXor};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 
 pub struct CPU {
     registers: Registers,
@@ -423,6 +423,16 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
+            Instruction::RES(bit_to_reset, target) => {
+                let (value, pc_offset) = target.get_byte_and_pc_offset(&self);
+                let new_value = self.reset_bit(value, bit_to_reset);
+                target.set_byte(new_value, self);
+                let cycles = match target {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
             Instruction::DI => {
                 self.interrupt_master_enable = false;
                 (self.registers.pc.wrapping_add(1), 4)
@@ -633,6 +643,11 @@ impl CPU {
         self.registers.f.zero = (mask & value) == 0;
         self.registers.f.subtract = false;
         self.registers.f.half_carry = true;
+    }
+
+    fn reset_bit(&mut self, value: u8, bit_to_reset: u8) -> u8 {
+        let mask = (1 << bit_to_reset).not() as u8;
+        value & mask
     }
 
     fn swap_nibbles(&mut self, value: u8) -> u8 {
