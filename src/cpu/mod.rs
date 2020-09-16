@@ -445,6 +445,36 @@ impl CPU {
                 self.interrupt_master_enable = true;
                 (self.ret(true), 16)
             }
+            Instruction::SLA(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.bit_shift(value, RotateDirection::Left, false);
+                source.set_byte(new_value, self);
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
+            Instruction::SRA(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.bit_shift(value, RotateDirection::Right, true);
+                source.set_byte(new_value, self);
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
+            Instruction::SRL(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.bit_shift(value, RotateDirection::Right, false);
+                source.set_byte(new_value, self);
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
             Instruction::SWAP(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.swap_nibbles(value);
@@ -648,6 +678,28 @@ impl CPU {
     fn reset_bit(&mut self, value: u8, bit_to_reset: u8) -> u8 {
         let mask = (1 << bit_to_reset).not() as u8;
         value & mask
+    }
+
+    fn bit_shift(&mut self, value: u8, direction: RotateDirection, retain_shifted_bit: bool) -> u8 {
+        let shifted_value = match direction {
+            RotateDirection::Left => value << 1,
+            RotateDirection::Right => value >> 1,
+        };
+        let shifted_bit = match direction {
+            RotateDirection::Left => (value & 0x80) >> 7,
+            RotateDirection::Right => (value & 0x01),
+        };
+        let new_bit = match (direction, retain_shifted_bit) {
+            (RotateDirection::Left, _) => 0,
+            (RotateDirection::Right, false) => 0,
+            (RotateDirection::Right, true) => shifted_bit << 7,
+        };
+        let new_value = shifted_value | new_bit;
+        self.registers.f.zero = new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.half_carry = false;
+        self.registers.f.carry = shifted_bit != 0;
+        new_value
     }
 
     fn swap_nibbles(&mut self, value: u8) -> u8 {
