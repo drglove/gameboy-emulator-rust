@@ -16,6 +16,7 @@ pub struct CPU {
     registers: Registers,
     pub bus: MemoryBus,
     interrupt_master_enable: bool,
+    halted: bool,
 }
 
 pub const CPU_CLOCK_RATE_HZ: u32 = 4194304;
@@ -26,11 +27,18 @@ impl CPU {
             registers: Registers::new(),
             bus: MemoryBus::new(cart),
             interrupt_master_enable: true,
+            halted: false,
         }
     }
 
     pub fn step_single_instruction(&mut self) -> u8 {
-        let cycles_this_instruction = self.run_next_instruction();
+        let cycles_this_instruction = if self.halted {
+            4
+        }
+        else {
+            self.run_next_instruction()
+        };
+
         self.bus.apu.step(cycles_this_instruction);
         cycles_this_instruction
     }
@@ -433,6 +441,10 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
+            Instruction::HALT => {
+                self.halted = true;
+                (self.registers.pc.wrapping_add(1), 4)
+            }
             Instruction::DI => {
                 self.interrupt_master_enable = false;
                 (self.registers.pc.wrapping_add(1), 4)
@@ -734,6 +746,7 @@ impl CPU {
     }
 
     fn interrupt(&mut self, interrupt: Interrupt) {
+        self.halted = false;
         self.push(self.registers.pc);
         self.registers.pc = match interrupt {
             Interrupt::VBlank => 0x40,
