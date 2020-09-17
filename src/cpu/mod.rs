@@ -405,7 +405,7 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
-            Instruction::RLA() => {
+            Instruction::RLA => {
                 let source = ArithmeticSource::A;
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, false);
@@ -415,6 +415,23 @@ impl CPU {
             Instruction::RR(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Right, true);
+                source.set_byte(new_value, self);
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
+            Instruction::RLCA => {
+                let source = ArithmeticSource::A;
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.rotate(value, RotateDirection::Left, false);
+                source.set_byte(new_value, self);
+                (self.registers.pc.wrapping_add(pc_offset), 4)
+            }
+            Instruction::RLC(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.rotate(value, RotateDirection::Left, true);
                 source.set_byte(new_value, self);
                 let cycles = match source {
                     ArithmeticSource::HL_INDIRECT => 16,
@@ -677,6 +694,23 @@ impl CPU {
         self.registers.f.subtract = false;
         self.registers.f.half_carry = false;
         self.registers.f.carry = (value & 0x80) == 0x80;
+        new_value
+    }
+
+    fn rotate(&mut self, value: u8, direction: RotateDirection, set_zero: bool) -> u8 {
+        let cycled_bit = match direction {
+            RotateDirection::Left => (value & 0x80) >> 7,
+            RotateDirection::Right => (value & 0x01) << 7,
+        };
+        let shifted_value = match direction {
+            RotateDirection::Left => value << 1,
+            RotateDirection::Right => value >> 1,
+        };
+        let new_value = shifted_value | cycled_bit;
+        self.registers.f.zero = set_zero && new_value == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.half_carry = false;
+        self.registers.f.carry = cycled_bit != 0;
         new_value
     }
 
