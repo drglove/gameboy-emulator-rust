@@ -128,6 +128,17 @@ impl CPU {
 
                 (self.registers.pc.wrapping_add(2), 16)
             }
+            Instruction::ADC(source) => {
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
+                let new_value = self.add_with_carry(value);
+                self.registers.a = new_value;
+                let cycles = match source {
+                    ArithmeticSource::HL_INDIRECT => 8,
+                    ArithmeticSource::D8 => 8,
+                    _ => 4,
+                };
+                (self.registers.pc.wrapping_add(pc_offset), cycles)
+            }
             Instruction::SUB(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 let new_value = self.subtract(value);
@@ -550,6 +561,17 @@ impl CPU {
         let mask = 0b111_1111_1111;
         self.registers.f.half_carry = (value & mask) + (hl & mask) > mask;
         new_value
+    }
+
+    fn add_with_carry(&mut self, value: u8) -> u8 {
+        let carry_bit = if self.registers.f.carry { 1 } else { 0 };
+        let (new_value_without_carry, first_carry) = self.registers.a.overflowing_add(value);
+        let (new_value_with_carry, second_carry) = new_value_without_carry.overflowing_add(carry_bit);
+        self.registers.f.zero = new_value_with_carry == 0;
+        self.registers.f.subtract = false;
+        self.registers.f.carry = first_carry || second_carry;
+        self.registers.f.half_carry = ((self.registers.a & 0x0F) + (value & 0x0F) + carry_bit) > 0x0F;
+        new_value_with_carry
     }
 
     fn subtract(&mut self, value: u8) -> u8 {
