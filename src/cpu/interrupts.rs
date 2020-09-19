@@ -84,6 +84,24 @@ impl InterruptsToSet {
             Interrupt::Joypad => self.interrupts[4] = true,
         }
     }
+
+    pub fn union(&mut self, interrupts: InterruptsToSet) {
+        if interrupts.is_interrupt_set(Interrupt::VBlank) {
+            self.set_interrupt(Interrupt::VBlank);
+        }
+        if interrupts.is_interrupt_set(Interrupt::LCDStat) {
+            self.set_interrupt(Interrupt::LCDStat);
+        }
+        if interrupts.is_interrupt_set(Interrupt::Timer) {
+            self.set_interrupt(Interrupt::Timer);
+        }
+        if interrupts.is_interrupt_set(Interrupt::Serial) {
+            self.set_interrupt(Interrupt::Serial);
+        }
+        if interrupts.is_interrupt_set(Interrupt::Joypad) {
+            self.set_interrupt(Interrupt::Joypad);
+        }
+    }
 }
 
 impl Default for InterruptsToSet {

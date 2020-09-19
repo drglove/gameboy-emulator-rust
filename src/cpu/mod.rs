@@ -60,7 +60,13 @@ impl CPU {
             Interrupt::Joypad,
         ];
 
-        let interrupts_to_flag = self.bus.ppu.step(cycles);
+        let ppu_interrupts = self.bus.ppu.step(cycles);
+        let joypad_interrupts = self.bus.input.step();
+
+        let mut interrupts_to_flag = InterruptsToSet::default();
+        interrupts_to_flag.union(ppu_interrupts);
+        interrupts_to_flag.union(joypad_interrupts);
+
         for interrupt in all_interrupts.iter() {
             if interrupts_to_flag.is_interrupt_set(*interrupt) {
                 interrupt.set_interrupt_flag(&mut self.bus);

@@ -1,8 +1,10 @@
 pub mod cartridge;
 
 use crate::apu::APU;
+use crate::input::InputState;
 use crate::ppu::PPU;
 use cartridge::Cartridge;
+use std::sync::{Arc, Mutex};
 
 pub struct MemoryBus {
     memory: Vec<u8>,
@@ -11,6 +13,7 @@ pub struct MemoryBus {
     finished_boot: bool,
     pub ppu: PPU,
     pub apu: APU,
+    pub input: InputState,
 }
 
 impl MemoryBus {
@@ -42,6 +45,7 @@ impl MemoryBus {
             finished_boot: false,
             ppu: PPU::new(),
             apu: APU::new(),
+            input: Default::default(),
         }
     }
 
@@ -87,7 +91,7 @@ impl MemoryBus {
 
     fn read_io_register(&self, address: usize) -> u8 {
         match address {
-            0xFF00 => 0xFF,
+            _ if self.input.supports_io_register(address) => self.input.read_io_register(address),
             _ if self.ppu.supports_io_register(address) => self.ppu.read_io_register(address),
             _ if APU::supports_io_register(address) => self.apu.read_io_register(address),
             _ => self.memory[address],
@@ -97,7 +101,9 @@ impl MemoryBus {
     fn write_io_register(&mut self, value: u8, address: usize) {
         match address {
             0xFF50 if !self.finished_boot => self.finished_boot = true,
-            0xFF00 => {}
+            _ if self.input.supports_io_register(address) => {
+                self.input.write_io_register(value, address)
+            }
             _ if self.ppu.supports_io_register(address) => {
                 self.ppu.write_io_register(value, address)
             }

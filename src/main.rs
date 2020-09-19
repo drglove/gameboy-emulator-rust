@@ -1,5 +1,6 @@
 mod apu;
 mod cpu;
+mod input;
 mod memory;
 mod ppu;
 mod utils;
@@ -20,6 +21,8 @@ impl DMG01 {
 
 use std::sync::Arc;
 use structopt::StructOpt;
+use crate::input::JoypadInput;
+use minifb::Key;
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -54,9 +57,28 @@ fn main() {
 
     let gameboy = DMG01::new(cart);
     let displayable_framebuffer = Arc::clone(&gameboy.cpu.bus.ppu.displayable_framebuffer);
+    let joypad_buffer = Arc::clone(&gameboy.cpu.bus.input.next_joypad);
     let _audio_player = apu::cpal_audio_output::CpalAudioLoop::new(gameboy.cpu).ok();
 
     while window.is_open() {
+        let mut joypad_state = JoypadInput::default();
+        window.get_keys().map(|keys| {
+            for key in keys {
+                match key {
+                    Key::Enter => joypad_state.start = true,
+                    Key::Space => joypad_state.select = true,
+                    Key::X => joypad_state.a = true,
+                    Key::Z => joypad_state.b = true,
+                    Key::Up => joypad_state.up = true,
+                    Key::Down => joypad_state.down = true,
+                    Key::Left => joypad_state.left = true,
+                    Key::Right => joypad_state.right = true,
+                    _ => {}
+                }
+            }
+        });
+        *joypad_buffer.lock().unwrap() = joypad_state;
+
         let framebuffer = displayable_framebuffer.lock().unwrap().clone();
         window
             .update_with_buffer(
