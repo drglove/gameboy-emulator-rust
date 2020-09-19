@@ -8,7 +8,7 @@ use self::instructions::{
 };
 use super::memory::cartridge::Cartridge;
 use super::memory::MemoryBus;
-use interrupts::Interrupt;
+use interrupts::{Interrupt, InterruptsToSet};
 use registers::Registers;
 use std::ops::{BitAnd, BitOr, BitXor, Not};
 
