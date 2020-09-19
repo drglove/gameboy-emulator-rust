@@ -97,7 +97,7 @@ impl MemoryBus {
     fn write_io_register(&mut self, value: u8, address: usize) {
         match address {
             0xFF50 if !self.finished_boot => self.finished_boot = true,
-            0xFF00 => {},
+            0xFF00 => {}
             _ if self.ppu.supports_io_register(address) => {
                 self.ppu.write_io_register(value, address)
             }

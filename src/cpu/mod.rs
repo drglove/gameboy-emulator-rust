@@ -34,8 +34,7 @@ impl CPU {
     pub fn step_single_instruction(&mut self) -> u8 {
         let cycles_this_instruction = if self.halted {
             4
-        }
-        else {
+        } else {
             self.run_next_instruction()
         };
 
@@ -570,11 +569,13 @@ impl CPU {
     fn add_with_carry(&mut self, value: u8) -> u8 {
         let carry_bit = if self.registers.f.carry { 1 } else { 0 };
         let (new_value_without_carry, first_carry) = self.registers.a.overflowing_add(value);
-        let (new_value_with_carry, second_carry) = new_value_without_carry.overflowing_add(carry_bit);
+        let (new_value_with_carry, second_carry) =
+            new_value_without_carry.overflowing_add(carry_bit);
         self.registers.f.zero = new_value_with_carry == 0;
         self.registers.f.subtract = false;
         self.registers.f.carry = first_carry || second_carry;
-        self.registers.f.half_carry = ((self.registers.a & 0x0F) + (value & 0x0F) + carry_bit) > 0x0F;
+        self.registers.f.half_carry =
+            ((self.registers.a & 0x0F) + (value & 0x0F) + carry_bit) > 0x0F;
         new_value_with_carry
     }
 

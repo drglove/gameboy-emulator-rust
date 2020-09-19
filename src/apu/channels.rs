@@ -1,5 +1,5 @@
-use blip_buf::BlipBuf;
 use super::{FrameSequencer, SequencesToFire};
+use blip_buf::BlipBuf;
 
 struct Sweep {
     period: u8,
@@ -104,8 +104,7 @@ impl VolumeEnvelope {
         if self.current_volume > VOLUME_MIN && self.sequence.step() {
             if self.increase && self.current_volume < VOLUME_MAX {
                 self.current_volume += 1;
-            }
-            else if !self.increase && self.current_volume > VOLUME_MIN {
+            } else if !self.increase && self.current_volume > VOLUME_MIN {
                 self.current_volume -= 1;
             }
         }
@@ -275,7 +274,8 @@ impl Channel for SquareChannel {
             let sample = match self.trigger {
                 Trigger::Stopped => 0,
                 _ => {
-                    let duty_sample = self.volume_envelope.current_volume as i32 * self.duty.sequence();
+                    let duty_sample =
+                        self.volume_envelope.current_volume as i32 * self.duty.sequence();
                     self.duty.step();
                     duty_sample
                 }
