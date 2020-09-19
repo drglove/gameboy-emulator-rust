@@ -150,6 +150,10 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
+            Instruction::DAA => {
+                self.registers.a = self.decimal_adjust_accumulator();
+                (self.registers.pc.wrapping_add(1), 4)
+            }
             Instruction::CP(source) => {
                 let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
                 self.compare(value);
@@ -581,6 +585,31 @@ impl CPU {
         self.registers.f.carry = did_overflow;
         self.registers.f.half_carry = (self.registers.a & 0x0F) > (value & 0x0F);
         new_value
+    }
+
+    fn decimal_adjust_accumulator(&mut self) -> u8 {
+        let unadjusted_value = self.registers.a;
+        let flags = self.registers.f;
+
+        let mut correction = 0x00;
+        if flags.half_carry || (!flags.subtract && (unadjusted_value & 0x0F) > 0x09) {
+            correction |= 0x06;
+        }
+        if flags.carry || (!flags.subtract && unadjusted_value > 0x99) {
+            correction |= 0x60;
+        }
+
+        let adjusted_value = if !flags.subtract {
+            unadjusted_value.wrapping_add(correction)
+        } else {
+            unadjusted_value.wrapping_sub(correction)
+        };
+
+        self.registers.f.zero = adjusted_value == 0;
+        self.registers.f.carry = correction >= 0x60;
+        self.registers.f.half_carry = false;
+
+        adjusted_value
     }
 
     fn compare(&mut self, value: u8) {
