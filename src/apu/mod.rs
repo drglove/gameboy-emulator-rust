@@ -145,9 +145,13 @@ impl FrameSequencer {
     }
 
     fn step_multiple(&mut self, cycles: u8) -> bool {
-        let underflow = self.timer < cycles as u32;
-        self.timer = ((self.timer as i32) - (cycles as i32)).rem_euclid(self.period as i32) as u32;
-        underflow
+        if self.period > 0 {
+            let underflow = self.timer < cycles as u32;
+            self.timer = ((self.timer as i32) - (cycles as i32)).rem_euclid(self.period as i32) as u32;
+            underflow
+        } else {
+            false
+        }
     }
 
     fn step(&mut self) -> bool {
