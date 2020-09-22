@@ -77,7 +77,7 @@ impl InputState {
                 value = value | (1 << 0);
             }
         }
-        if self.select_directions {
+        else if self.select_directions {
             value = value & !(1 << 4);
             if self.current_joypad.down {
                 value = value | (1 << 3);
