@@ -478,6 +478,16 @@ impl CPU {
                 };
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
+            Instruction::SET(bit_to_set, target) => {
+                let (value, pc_offset) = target.get_byte_and_pc_offset(&self);
+                let new_value = self.set_bit(value, bit_to_set);
+                target.set_byte(new_value, self);
+                let cycles = match target {
+                    ArithmeticSource::HL_INDIRECT => 16,
+                    _ => 8,
+                };
+                (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
+            }
             Instruction::HALT => {
                 self.halted = true;
                 (self.registers.pc.wrapping_add(1), 4)
@@ -782,6 +792,11 @@ impl CPU {
     fn reset_bit(&mut self, value: u8, bit_to_reset: u8) -> u8 {
         let mask = (1 << bit_to_reset).not() as u8;
         value & mask
+    }
+
+    fn set_bit(&mut self, value: u8, bit_to_set: u8) -> u8 {
+        let mask = (1 << bit_to_set) as u8;
+        value | mask
     }
 
     fn bit_shift(&mut self, value: u8, direction: RotateDirection, retain_shifted_bit: bool) -> u8 {
