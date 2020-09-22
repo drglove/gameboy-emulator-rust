@@ -96,8 +96,8 @@ impl InputState {
     }
 
     pub fn write_io_register(&mut self, value: u8, _address: usize) {
-        self.select_buttons = (value & (1 << 5)) != 0;
-        self.select_directions = (value & (1 << 4)) != 0;
+        self.select_buttons = (value.not() & (1 << 5)) != 0;
+        self.select_directions = (value.not() & (1 << 4)) != 0;
     }
 }
 
