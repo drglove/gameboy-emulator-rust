@@ -1,4 +1,5 @@
-use super::{FrameSequencer, SequencesToFire};
+use super::SequencesToFire;
+use crate::utils::frame_sequencer::FrameSequencer;
 use blip_buf::BlipBuf;
 
 struct Sweep {

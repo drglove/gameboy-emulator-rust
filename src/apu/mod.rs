@@ -1,5 +1,6 @@
 use self::channels::{Channel, NoiseRegister, SquareChannel, StereoOutput};
 use crate::cpu::{CPU, CPU_CLOCK_RATE_HZ};
+use crate::utils::frame_sequencer::FrameSequencer;
 
 mod channels;
 pub mod cpal_audio_output;
@@ -7,7 +8,7 @@ pub mod cpal_audio_output;
 pub struct APU {
     square_with_sweep: SquareChannel,
     square_without_sweep: SquareChannel,
-    sequencers: FrameSequencers,
+    sequencers: AudioSequencers,
     cycles: u32,
 }
 
@@ -33,7 +34,7 @@ impl APU {
         APU {
             square_with_sweep: SquareChannel::new_with_sweep(),
             square_without_sweep: SquareChannel::new_without_sweep(),
-            sequencers: FrameSequencers::new(),
+            sequencers: AudioSequencers::new(),
             cycles: 0,
         }
     }
@@ -131,36 +132,7 @@ impl APU {
 }
 
 #[derive(Copy, Clone)]
-struct FrameSequencer {
-    timer: u32,
-    period: u32,
-}
-
-impl FrameSequencer {
-    pub fn new(initial_delay: u32, period: u32) -> Self {
-        FrameSequencer {
-            timer: initial_delay,
-            period,
-        }
-    }
-
-    fn step_multiple(&mut self, cycles: u8) -> bool {
-        if self.period > 0 {
-            let underflow = self.timer < cycles as u32;
-            self.timer = ((self.timer as i32) - (cycles as i32)).rem_euclid(self.period as i32) as u32;
-            underflow
-        } else {
-            false
-        }
-    }
-
-    fn step(&mut self) -> bool {
-        self.step_multiple(1)
-    }
-}
-
-#[derive(Copy, Clone)]
-struct FrameSequencers {
+struct AudioSequencers {
     frame_sequencer: FrameSequencer,
     length_sequencer: FrameSequencer,
     volume_sequencer: FrameSequencer,
@@ -203,7 +175,7 @@ impl Default for SequencesToFire {
     }
 }
 
-impl FrameSequencers {
+impl AudioSequencers {
     pub fn new() -> Self {
         // Step   Length Ctr  Vol Env     Sweep
         // ---------------------------------------
