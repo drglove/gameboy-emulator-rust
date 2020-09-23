@@ -1,6 +1,7 @@
 pub mod cartridge;
 
 use crate::apu::APU;
+use crate::cpu::timers::Timers;
 use crate::input::InputState;
 use crate::ppu::PPU;
 use cartridge::Cartridge;
@@ -14,6 +15,7 @@ pub struct MemoryBus {
     pub ppu: PPU,
     pub apu: APU,
     pub input: InputState,
+    pub timer: Timers,
 }
 
 impl MemoryBus {
@@ -46,6 +48,7 @@ impl MemoryBus {
             ppu: PPU::new(),
             apu: APU::new(),
             input: Default::default(),
+            timer: Default::default(),
         }
     }
 
@@ -94,6 +97,7 @@ impl MemoryBus {
             _ if self.input.supports_io_register(address) => self.input.read_io_register(address),
             _ if self.ppu.supports_io_register(address) => self.ppu.read_io_register(address),
             _ if APU::supports_io_register(address) => self.apu.read_io_register(address),
+            _ if self.timer.supports_io_register(address) => self.timer.read_io_register(address),
             _ => self.memory[address],
         }
     }
@@ -108,6 +112,9 @@ impl MemoryBus {
                 self.ppu.write_io_register(value, address)
             }
             _ if APU::supports_io_register(address) => self.apu.write_io_register(value, address),
+            _ if self.timer.supports_io_register(address) => {
+                self.timer.write_io_register(value, address)
+            }
             _ => self.memory[address] = value,
         }
     }

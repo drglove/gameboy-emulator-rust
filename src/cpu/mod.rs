@@ -1,6 +1,7 @@
 mod instructions;
 pub mod interrupts;
 mod registers;
+pub mod timers;
 
 use self::instructions::{
     AddressContainingRegister, ArithmeticSource, IncrementDecrementTarget, Instruction,
@@ -38,6 +39,7 @@ impl CPU {
             self.run_next_instruction()
         };
 
+        self.bus.timer.step(cycles_this_instruction);
         self.bus.apu.step(cycles_this_instruction);
         cycles_this_instruction
     }
