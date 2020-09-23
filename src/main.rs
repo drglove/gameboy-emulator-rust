@@ -19,10 +19,10 @@ impl DMG01 {
     }
 }
 
-use std::sync::Arc;
-use structopt::StructOpt;
 use crate::input::JoypadInput;
 use minifb::Key;
+use std::sync::Arc;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Cli {

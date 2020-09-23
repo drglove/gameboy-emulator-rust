@@ -1,6 +1,6 @@
 use crate::cpu::interrupts::{Interrupt, InterruptsToSet};
-use std::sync::{Arc, Mutex};
 use std::ops::Not;
+use std::sync::{Arc, Mutex};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct JoypadInput {
@@ -76,8 +76,7 @@ impl InputState {
             if self.current_joypad.a {
                 value = value | (1 << 0);
             }
-        }
-        else if self.select_directions {
+        } else if self.select_directions {
             value = value & !(1 << 4);
             if self.current_joypad.down {
                 value = value | (1 << 3);

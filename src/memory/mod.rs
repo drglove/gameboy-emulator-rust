@@ -5,7 +5,6 @@ use crate::cpu::timers::Timers;
 use crate::input::InputState;
 use crate::ppu::PPU;
 use cartridge::Cartridge;
-use std::sync::{Arc, Mutex};
 
 pub struct MemoryBus {
     memory: Vec<u8>,
