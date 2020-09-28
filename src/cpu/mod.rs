@@ -39,6 +39,8 @@ impl CPU {
             self.run_next_instruction()
         };
 
+        self.run_interrupts(cycles_this_instruction);
+
         self.bus.timer.step(cycles_this_instruction);
         self.bus.apu.step(cycles_this_instruction);
         cycles_this_instruction
@@ -53,7 +55,10 @@ impl CPU {
         let instruction = self.next_instruction().unwrap();
         let (next_pc, cycles) = self.execute(instruction);
         self.registers.pc = next_pc;
+        cycles
+    }
 
+    fn run_interrupts(&mut self, cycles: u8) {
         let all_interrupts = [
             Interrupt::VBlank,
             Interrupt::LCDStat,
@@ -84,8 +89,6 @@ impl CPU {
                 }
             }
         }
-
-        cycles
     }
 
     fn next_instruction(&self) -> Result<Instruction, String> {
