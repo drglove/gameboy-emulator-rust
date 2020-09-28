@@ -35,7 +35,7 @@ impl Timers {
         }
     }
 
-    pub fn write_io_register(&mut self, value: u8, address: usize) {
+    pub fn write_io_register(&mut self, _value: u8, address: usize) {
         match address {
             0xFF04 => self.divider = 0,
             _ => panic!("Writing to unsupported timer register!"),
