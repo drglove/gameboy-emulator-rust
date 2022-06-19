@@ -22,10 +22,7 @@ impl Timers {
     }
 
     pub fn supports_io_register(&self, address: usize) -> bool {
-        match address {
-            0xFF04 => true,
-            _ => false,
-        }
+        matches!(address, 0xFF04)
     }
 
     pub fn read_io_register(&self, address: usize) -> u8 {

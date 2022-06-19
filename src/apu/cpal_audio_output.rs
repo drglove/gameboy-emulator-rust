@@ -46,7 +46,7 @@ impl CpalAudioLoop {
             &audio_config,
             move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
                 let samples_needed = data.len() / 2;
-                self::AudioLoop::run_cycles_for_desired_samples(samples_needed as u32, &mut cpu);
+                <dyn AudioLoop>::run_cycles_for_desired_samples(samples_needed as u32, &mut cpu);
                 let mut samples = cpu.bus.apu.gather_samples();
                 let flattened_samples = samples.interleave();
                 data[..flattened_samples.len()].copy_from_slice(flattened_samples.as_slice());

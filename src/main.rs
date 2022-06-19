@@ -34,13 +34,9 @@ fn main() {
     let args = Cli::from_args();
 
     use std::fs;
-    let cart = if let Some(rom_path) = args.rom {
-        Some(Cartridge {
+    let cart = args.rom.map(|rom_path| Cartridge {
             rom: fs::read(rom_path).expect("Could not open rom file!"),
-        })
-    } else {
-        None
-    };
+        });
 
     use minifb::{Window, WindowOptions};
     use ppu::{LCD_HEIGHT, LCD_WIDTH};
@@ -62,7 +58,7 @@ fn main() {
 
     while window.is_open() {
         let mut joypad_state = JoypadInput::default();
-        window.get_keys().map(|keys| {
+        if let Some(keys) = window.get_keys() {
             for key in keys {
                 match key {
                     Key::Enter => joypad_state.start = true,
@@ -76,7 +72,7 @@ fn main() {
                     _ => {}
                 }
             }
-        });
+        }
         *joypad_buffer.lock().unwrap() = joypad_state;
 
         let framebuffer = displayable_framebuffer.lock().unwrap().clone();

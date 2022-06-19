@@ -108,7 +108,7 @@ impl CPU {
         match instruction {
             Instruction::NOP => (self.registers.pc.wrapping_add(1), 4),
             Instruction::ADD(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.add(value);
                 self.registers.a = new_value;
                 let cycles = match source {
@@ -150,7 +150,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::SUB(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.subtract(value);
                 self.registers.a = new_value;
                 let cycles = match source {
@@ -165,7 +165,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(1), 4)
             }
             Instruction::CP(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 self.compare(value);
                 let cycles = match source {
                     ArithmeticSource::HL_INDIRECT => 8,
@@ -175,7 +175,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::XOR(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.xor(value);
                 self.registers.a = new_value;
                 let cycles = match source {
@@ -186,7 +186,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::AND(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.and(value);
                 self.registers.a = new_value;
                 let cycles = match source {
@@ -197,7 +197,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset), cycles)
             }
             Instruction::OR(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.or(value);
                 self.registers.a = new_value;
                 let cycles = match source {
@@ -218,7 +218,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(1), 4)
             }
             Instruction::LD(load_type) => {
-                return match load_type {
+                match load_type {
                     LoadType::ReadWordNumericLiteral(target, _) => {
                         let value = self.read_next_word();
                         target.set_word(value, &mut self.registers);
@@ -386,7 +386,7 @@ impl CPU {
             }
             Instruction::INC(target) => match target {
                 IncrementDecrementTarget::Byte(byte_target) => {
-                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
+                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(self);
                     let new_value = self.increment(value);
                     byte_target.set_byte(new_value, self);
                     let cycles = match byte_target {
@@ -404,7 +404,7 @@ impl CPU {
             },
             Instruction::DEC(target) => match target {
                 IncrementDecrementTarget::Byte(byte_target) => {
-                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(&self);
+                    let (value, pc_offset) = byte_target.get_byte_and_pc_offset(self);
                     let new_value = self.decrement(value);
                     byte_target.set_byte(new_value, self);
                     let cycles = match byte_target {
@@ -421,7 +421,7 @@ impl CPU {
                 }
             },
             Instruction::RL(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, true);
                 source.set_byte(new_value, self);
                 let cycles = match source {
@@ -432,13 +432,13 @@ impl CPU {
             }
             Instruction::RLA => {
                 let source = ArithmeticSource::A;
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Left, false);
                 source.set_byte(new_value, self);
                 (self.registers.pc.wrapping_add(pc_offset), 4)
             }
             Instruction::RR(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.rotate_through_carry(value, RotateDirection::Right, true);
                 source.set_byte(new_value, self);
                 let cycles = match source {
@@ -465,7 +465,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::BIT(bit_to_test, source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 self.bit_test(value, bit_to_test);
                 let cycles = match source {
                     ArithmeticSource::HL_INDIRECT => 16,
@@ -474,7 +474,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::RES(bit_to_reset, target) => {
-                let (value, pc_offset) = target.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = target.get_byte_and_pc_offset(self);
                 let new_value = self.reset_bit(value, bit_to_reset);
                 target.set_byte(new_value, self);
                 let cycles = match target {
@@ -484,7 +484,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::SET(bit_to_set, target) => {
-                let (value, pc_offset) = target.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = target.get_byte_and_pc_offset(self);
                 let new_value = self.set_bit(value, bit_to_set);
                 target.set_byte(new_value, self);
                 let cycles = match target {
@@ -540,7 +540,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(pc_offset + 1), cycles)
             }
             Instruction::SWAP(source) => {
-                let (value, pc_offset) = source.get_byte_and_pc_offset(&self);
+                let (value, pc_offset) = source.get_byte_and_pc_offset(self);
                 let new_value = self.swap_nibbles(value);
                 source.set_byte(new_value, self);
                 let cycles = match source {

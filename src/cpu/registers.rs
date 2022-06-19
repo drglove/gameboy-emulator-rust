@@ -24,7 +24,7 @@ const SUBTRACT_FLAG_BYTE_POSITION: u8 = 6;
 const HALF_CARRY_FLAG_BYTE_POSITION: u8 = 5;
 const CARRY_FLAG_BYTE_POSITION: u8 = 4;
 
-impl std::convert::From<FlagsRegister> for u8 {
+impl From<FlagsRegister> for u8 {
     fn from(flag: FlagsRegister) -> u8 {
         (if flag.zero { 1 } else { 0 }) << ZERO_FLAG_BYTE_POSITION
             | (if flag.subtract { 1 } else { 0 }) << SUBTRACT_FLAG_BYTE_POSITION
@@ -33,7 +33,7 @@ impl std::convert::From<FlagsRegister> for u8 {
     }
 }
 
-impl std::convert::From<u8> for FlagsRegister {
+impl From<u8> for FlagsRegister {
     fn from(value: u8) -> Self {
         let zero = ((value >> ZERO_FLAG_BYTE_POSITION) & 0b1) != 0;
         let subtract = ((value >> SUBTRACT_FLAG_BYTE_POSITION) & 0b1) != 0;

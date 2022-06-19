@@ -61,7 +61,7 @@ impl InputState {
     }
 
     pub fn read_io_register(&self, _address: usize) -> u8 {
-        let mut value = 0x00 as u8;
+        let mut value = 0x00_u8;
         if self.select_buttons {
             value = value | (1 << 5);
             if self.current_joypad.start {

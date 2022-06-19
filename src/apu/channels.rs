@@ -8,7 +8,7 @@ struct Sweep {
     shift: u8,
 }
 
-impl std::convert::From<&Sweep> for u8 {
+impl From<&Sweep> for u8 {
     fn from(sweep: &Sweep) -> Self {
         let sweep_time = (sweep.period & 0b111) << 4;
         let decrease = (sweep.decrease as u8) << 3;
@@ -17,7 +17,7 @@ impl std::convert::From<&Sweep> for u8 {
     }
 }
 
-impl std::convert::From<u8> for Sweep {
+impl From<u8> for Sweep {
     fn from(value: u8) -> Self {
         Sweep {
             period: (value & 0b1110000) >> 4,
@@ -57,7 +57,7 @@ impl Duty {
     }
 }
 
-impl std::convert::From<&Duty> for u8 {
+impl From<&Duty> for u8 {
     fn from(duty: &Duty) -> Self {
         let duty_type: u8 = match duty.duty_type {
             DutyType::Eighth => 0b00,
@@ -70,7 +70,7 @@ impl std::convert::From<&Duty> for u8 {
     }
 }
 
-impl std::convert::From<u8> for Duty {
+impl From<u8> for Duty {
     fn from(value: u8) -> Self {
         let duty_bits = (value & 0b11000000) >> 6;
         let duty_type = match duty_bits {
@@ -112,7 +112,7 @@ impl VolumeEnvelope {
     }
 }
 
-impl std::convert::From<&VolumeEnvelope> for u8 {
+impl From<&VolumeEnvelope> for u8 {
     fn from(volume_envelope: &VolumeEnvelope) -> Self {
         let initial_volume = (volume_envelope.initial_volume & 0b1111) << 4;
         let envelope_direction = (volume_envelope.increase as u8) << 3;
@@ -121,7 +121,7 @@ impl std::convert::From<&VolumeEnvelope> for u8 {
     }
 }
 
-impl std::convert::From<u8> for VolumeEnvelope {
+impl From<u8> for VolumeEnvelope {
     fn from(value: u8) -> Self {
         let initial_volume = (value & 0b11110000) >> 4;
         let envelope_direction = ((value & 0b1000) >> 3) != 0;
@@ -170,7 +170,7 @@ impl StereoOutput {
         self.left
             .chunks(1)
             .zip(self.right.chunks(1))
-            .flat_map(|(a, b)| a.into_iter().chain(b))
+            .flat_map(|(a, b)| a.iter().chain(b))
             .copied()
             .collect()
     }

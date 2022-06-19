@@ -17,7 +17,7 @@ impl Shade {
     }
 }
 
-impl std::convert::From<&Shade> for u8 {
+impl From<&Shade> for u8 {
     fn from(shade: &Shade) -> Self {
         match *shade {
             Shade::White => 0b00,
@@ -28,7 +28,7 @@ impl std::convert::From<&Shade> for u8 {
     }
 }
 
-impl std::convert::From<u8> for Shade {
+impl From<u8> for Shade {
     fn from(value: u8) -> Self {
         match value & 0b11 {
             0b00 => Shade::White,
@@ -77,7 +77,7 @@ impl Default for Palette {
     }
 }
 
-impl std::convert::From<&Palette> for u8 {
+impl From<&Palette> for u8 {
     fn from(palette: &Palette) -> u8 {
         let mut byte = 0;
         for (tile_pixel_index, shade) in palette.shades.iter().enumerate() {
@@ -95,7 +95,7 @@ impl std::convert::From<&Palette> for u8 {
     }
 }
 
-impl std::convert::From<u8> for Palette {
+impl From<u8> for Palette {
     fn from(value: u8) -> Self {
         let mut palette = Palette {
             shades: [Shade::White; 4],

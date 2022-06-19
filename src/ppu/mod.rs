@@ -1,5 +1,6 @@
 mod palette;
 mod tile;
+mod oam;
 
 use crate::cpu::interrupts::{Interrupt, InterruptsToSet};
 use crate::memory::{VRAM_BEGIN, VRAM_SIZE};
@@ -68,10 +69,7 @@ impl PPU {
     }
 
     pub fn supports_io_register(&self, address: usize) -> bool {
-        match address {
-            0xFF42 | 0xFF43 | 0xFF44 | 0xFF47 => true,
-            _ => false,
-        }
+        matches!(address, 0xFF42 | 0xFF43 | 0xFF44 | 0xFF47)
     }
 
     pub fn read_io_register(&self, address: usize) -> u8 {
@@ -195,8 +193,7 @@ impl PPU {
 
         // Only try to lock here. If we fail, we will drop the frame as opposed to messing up our audio stream.
         let displayable_framebuffer = self.displayable_framebuffer.try_lock();
-        if displayable_framebuffer.is_ok() {
-            let mut displayable_framebuffer = displayable_framebuffer.unwrap();
+        if let Ok(mut displayable_framebuffer) = displayable_framebuffer {
             *displayable_framebuffer = self.framebuffer.clone();
         }
     }
